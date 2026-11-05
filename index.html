@@ -4079,8 +4079,9 @@ async function saveAndLoad() {
     alert("Could not connect. Open this site on Netlify, then try again.");
   }
 }
-document.getElementById("syncServer").onclick = saveAndLoad;
-setCloudStatus("Ready");
+const syncBtn = document.getElementById("syncServer");
+if (syncBtn) syncBtn.onclick = saveAndLoad;
+setCloudStatus("On this device");
 document.getElementById("addVendorToday").onclick = () => {
   const name = prompt("Vendor name");
   if (!name || !name.trim()) return;

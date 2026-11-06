@@ -718,13 +718,13 @@ function paintCompany() {
       <div class="home-logo" id="coLogo">${c.logo?`<img src="${c.logo}" alt="Logo" />`:"C"}</div>
       <div><input id="coLogoFile" type="file" accept="image/*" /><button class="btn tiny" id="coLogoClear" type="button">Remove logo</button></div>
     </div>
-    <div class="sec">Google Sheet</div>
-    <div class="lbl">Script URL</div><input id="companySheetUrl" readonly value="https://script.google.com/macros/s/AKfycbz28x3ILDhYkqRbVrJho4yrSPespiekGboUXCia9DbV2A7j39-Bqrh-Zzh2g567gmEsWg/exec" />
-    <div class="actions"><button class="btn tiny" id="copySheetUrl" type="button">Copy URL</button><button class="btn primary" id="sheetSave" type="button">Save to Sheet</button></div>
+    <div class="sec">Database</div>
+    <div class="lbl">Supabase</div><input id="companySheetUrl" readonly value="https://eigcbksnkymwpluqpokm.supabase.co" />
+    <div class="actions"><button class="btn tiny" id="copySheetUrl" type="button">Copy URL</button><button class="btn primary" id="sheetSave" type="button">Save to database</button></div>
     <div class="actions"><button class="btn primary" id="saveCompany" type="button">Save company</button></div>
     <p class="note">Save, then log out. The home page shows this name, address, GSTIN, website, and logo.</p>`;
-  document.getElementById("copySheetUrl").onclick = () => { navigator.clipboard.writeText(SHEET_URL); toast("Sheet URL copied."); };
-  document.getElementById("sheetSave").onclick = () => pushSheet().then(() => toast("Saved to Google Sheet.")).catch(err => alert(err.message));
+  document.getElementById("copySheetUrl").onclick = () => { navigator.clipboard.writeText(SB_URL); toast("Database URL copied."); };
+  document.getElementById("sheetSave").onclick = () => pushSheet().then(() => toast("Saved to database.")).catch(err => alert(err.message));
   document.getElementById("saveCompany").onclick = () => {
     state.company.title = document.getElementById("coTitle").value.trim() || "Carne Trade Book";
     state.company.name = document.getElementById("coName").value.trim();
@@ -854,28 +854,29 @@ async function pullCloud() {
 }
 
 
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbz28x3ILDhYkqRbVrJho4yrSPespiekGboUXCia9DbV2A7j39-Bqrh-Zzh2g567gmEsWg/exec";
-function sheetUrl() { return SHEET_URL; }
+const SB_URL = "https://eigcbksnkymwpluqpokm.supabase.co";
+const SB_KEY = "sb_publishable_ymcik2EcWMTz4nCFzRe6sw_45-zig0k";
+function sheetUrl() { return SB_URL; }
+function sbHeaders() {
+  if (!SB_KEY) throw new Error("Supabase anon key is not set yet.");
+  return { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "application/json", Prefer: "return=representation" };
+}
 async function pushSheet() {
-  const url = sheetUrl();
-  if (!url) return;
   setCloudStatus("Saving...");
-  const res = await fetch(url, { method: "POST", body: JSON.stringify({ secret: "carne-book", state }) });
-  const text = await res.text();
-  if (!res.ok || /error/i.test(text) && /bad secret|Exception/i.test(text)) throw new Error("Sheet save failed");
-  setCloudStatus("Saved to Sheet");
+  const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main", { method: "PATCH", headers: sbHeaders(), body: JSON.stringify({ data: state, updated_at: new Date().toISOString() }) });
+  if (!res.ok) throw new Error("Database save failed. Run the table SQL in Supabase first.");
+  setCloudStatus("Saved to database");
 }
 async function pullSheet() {
-  const url = sheetUrl();
-  if (!url) throw new Error("Paste the Script URL first");
   setCloudStatus("Loading...");
-  const res = await fetch(url + (url.includes("?") ? "&" : "?") + "t=" + Date.now());
-  const pack = await res.json();
-  if (!pack || !pack.ok) throw new Error((pack && pack.error) || "Could not load the Sheet");
-  if (!pack.state) { setCloudStatus("Connected. Sheet is empty."); return false; }
-  state = pack.state;
+  const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main&select=data", { headers: sbHeaders() });
+  if (!res.ok) throw new Error("Could not load the database.");
+  const rows = await res.json();
+  const data = rows && rows[0] && rows[0].data;
+  if (!data || !Object.keys(data).length) { setCloudStatus("Connected. Database is empty."); return false; }
+  state = data;
   localStorage.setItem(KEY, JSON.stringify(state));
-  setCloudStatus("Loaded from Sheet");
+  setCloudStatus("Loaded from database");
   return true;
 }
 function toast(msg) {
@@ -4150,7 +4151,7 @@ async function saveAndLoad() {
   }
 }
 const sheetLoadBtn = document.getElementById("sheetLoad");
-if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from Google Sheet."); } else toast("Sheet is empty."); }).catch(err => { setCloudStatus(err.message); alert(err.message); });
+if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from database."); } else toast("Database is empty."); }).catch(err => { setCloudStatus(err.message); alert(err.message); });
 setCloudStatus("Ready");
 document.getElementById("addVendorToday").onclick = () => {
   const name = prompt("Vendor name");

@@ -214,10 +214,8 @@
     <div class="card">
       <div class="guide" id="guide"><div><b>Daily steps.</b> Pick the date, enter purchases with a vendor, add customer dispatch, then Save this day. Use New invoice only when you need a tax invoice.</div><button class="btn tiny" id="hideGuide" type="button">Hide</button></div>
       <div class="card" id="cloudCard" style="margin-bottom:14px;">
-        <h2>Google Sheet <span class="hint" id="cloudStatus">Not connected</span></h2>
-        <p class="note">Paste the Apps Script web app URL. Save writes the book to the Sheet. Load brings it back on any device.</p>
-        <div class="lbl">Script URL</div><input id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" />
-        <div class="actions"><button class="btn tiny" id="saveSheetUrl" type="button">Save URL</button><button class="btn primary" id="sheetSave" type="button">Save to Sheet</button><button class="btn ghost" id="sheetLoad" type="button">Load from Sheet</button></div>
+        <h2>Books <span class="hint" id="cloudStatus">Ready</span></h2>
+        <div class="actions"><button class="btn primary" id="sheetLoad" type="button">Load data</button></div>
       </div>
       <div class="card" id="carcassSplitCard" style="margin-bottom:14px;"></div>
       <h2 id="entryTitle">B2B day entry <span class="hint" id="entryHint">Daily entry</span></h2>
@@ -720,8 +718,13 @@ function paintCompany() {
       <div class="home-logo" id="coLogo">${c.logo?`<img src="${c.logo}" alt="Logo" />`:"C"}</div>
       <div><input id="coLogoFile" type="file" accept="image/*" /><button class="btn tiny" id="coLogoClear" type="button">Remove logo</button></div>
     </div>
+    <div class="sec">Google Sheet</div>
+    <div class="lbl">Script URL</div><input id="companySheetUrl" readonly value="https://script.google.com/macros/s/AKfycbz28x3ILDhYkqRbVrJho4yrSPespiekGboUXCia9DbV2A7j39-Bqrh-Zzh2g567gmEsWg/exec" />
+    <div class="actions"><button class="btn tiny" id="copySheetUrl" type="button">Copy URL</button><button class="btn primary" id="sheetSave" type="button">Save to Sheet</button></div>
     <div class="actions"><button class="btn primary" id="saveCompany" type="button">Save company</button></div>
     <p class="note">Save, then log out. The home page shows this name, address, GSTIN, website, and logo.</p>`;
+  document.getElementById("copySheetUrl").onclick = () => { navigator.clipboard.writeText(SHEET_URL); toast("Sheet URL copied."); };
+  document.getElementById("sheetSave").onclick = () => pushSheet().then(() => toast("Saved to Google Sheet.")).catch(err => alert(err.message));
   document.getElementById("saveCompany").onclick = () => {
     state.company.title = document.getElementById("coTitle").value.trim() || "Carne Trade Book";
     state.company.name = document.getElementById("coName").value.trim();
@@ -851,9 +854,8 @@ async function pullCloud() {
 }
 
 
-const SHEET_KEY = "carne-sheet-url";
-function sheetUrl() { return localStorage.getItem(SHEET_KEY) || ""; }
-function setSheetUrl(url) { localStorage.setItem(SHEET_KEY, url.trim()); }
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbz28x3ILDhYkqRbVrJho4yrSPespiekGboUXCia9DbV2A7j39-Bqrh-Zzh2g567gmEsWg/exec";
+function sheetUrl() { return SHEET_URL; }
 async function pushSheet() {
   const url = sheetUrl();
   if (!url) return;
@@ -4147,15 +4149,9 @@ async function saveAndLoad() {
     alert("Could not connect. Open this site on Netlify, then try again.");
   }
 }
-const sheetBox = document.getElementById("sheetUrl");
-if (sheetBox) sheetBox.value = sheetUrl();
-const saveUrlBtn = document.getElementById("saveSheetUrl");
-if (saveUrlBtn) saveUrlBtn.onclick = () => { setSheetUrl(document.getElementById("sheetUrl").value); setCloudStatus(sheetUrl() ? "URL saved" : "Not connected"); toast("Script URL saved on this device."); };
-const sheetSaveBtn = document.getElementById("sheetSave");
-if (sheetSaveBtn) sheetSaveBtn.onclick = () => pushSheet().then(() => toast("Saved to Google Sheet.")).catch(err => { setCloudStatus(err.message); alert(err.message); });
 const sheetLoadBtn = document.getElementById("sheetLoad");
-if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from Google Sheet."); } }).catch(err => { setCloudStatus(err.message); alert(err.message); });
-setCloudStatus(sheetUrl() ? "URL saved" : "Not connected");
+if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from Google Sheet."); } else toast("Sheet is empty."); }).catch(err => { setCloudStatus(err.message); alert(err.message); });
+setCloudStatus("Ready");
 document.getElementById("addVendorToday").onclick = () => {
   const name = prompt("Vendor name");
   if (!name || !name.trim()) return;

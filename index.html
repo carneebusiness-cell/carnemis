@@ -22,16 +22,31 @@
   .nav button.on { background:var(--card); color:var(--ink); box-shadow:var(--shadow); }
   .guide { background:#fffdf9; border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; gap:12px; align-items:center; }
   .toast { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#1c1712; color:#fff; border-radius:14px; padding:16px 18px; z-index:200; box-shadow:var(--shadow); max-width:min(420px,90vw); text-align:center; }
-  #login { position:fixed; inset:0; z-index:50; overflow:auto; background:radial-gradient(900px 420px at 100% -10%,#f3e0c8 0%,transparent 55%),radial-gradient(700px 360px at -10% 0%,#f6e7e2 0%,transparent 50%),#f7f1e7; }
+  #login { position:fixed; inset:0; z-index:50; overflow:auto; background:#111; color:#fff; }
   #login.hidden, #login.off { display:none !important; pointer-events:none !important; visibility:hidden !important; }
-  .home { min-height:100vh; display:grid; grid-template-columns:1.2fr .8fr; gap:28px; align-items:center; padding:40px; }
-  .home-brand { display:flex; flex-direction:column; gap:18px; }
-  .home-logo { width:92px; height:92px; border-radius:24px; background:linear-gradient(160deg,#a33b34,#6d201c); color:#fff; display:grid; place-items:center; font-family:Fraunces,serif; font-size:42px; overflow:hidden; }
-  .home-logo img { width:100%; height:100%; object-fit:cover; }
-  .home h1 { font-family:Fraunces,serif; font-size:52px; line-height:.95; margin:0; letter-spacing:-.04em; }
-  .home .co { color:var(--muted); line-height:1.6; }
-  .home .box { background:#fffdf9; border:1px solid var(--line); border-radius:20px; padding:24px; box-shadow:var(--shadow); }
-  @media (max-width:800px) { .home { grid-template-columns:1fr; padding:18px 16px 40px; } .home h1 { font-size:34px; } #loginBtn { width:100%; min-height:48px; font-size:16px; } #login input { font-size:16px; min-height:44px; } }
+  .portal-top { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 28px; background:#3b2418; }
+  .portal-logo, .portal-mark { font-weight:800; letter-spacing:.02em; line-height:.9; }
+  .portal-logo img, .portal-mark img { height:42px; width:auto; display:block; }
+  .portal-mark img { height:64px; margin:0 auto 8px; }
+  .portal-logo small { display:block; color:#7dce3a; font-size:12px; letter-spacing:.18em; }
+  .portal-logo b { color:#e23b2f; }
+  .portal-nav { display:flex; gap:22px; align-items:center; color:#fff; font-size:14px; }
+  .portal-nav a { color:#fff; text-decoration:none; }
+  .portal-order { background:#e23b2f; color:#fff; border-radius:6px; padding:8px 14px; text-decoration:none; font-weight:700; }
+  .home { min-height:calc(100vh - 64px); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 16px 60px; text-align:center; }
+  .home-logo { width:0; height:0; overflow:hidden; }
+  .portal-mark { font-weight:800; font-size:34px; line-height:.9; margin-bottom:18px; }
+  .portal-mark small { display:block; color:#7dce3a; font-size:13px; letter-spacing:.18em; }
+  .portal-mark b { color:#e23b2f; }
+  .home h1 { color:#fff; font-size:34px; margin:0; font-family:Figtree,sans-serif; letter-spacing:0; }
+  .portal-sub { color:#cfcfcf; margin:6px 0 22px; }
+  .home .box { width:min(420px,100%); background:#1c1c1c; border:1px solid #2c2c2c; border-radius:16px; padding:22px; text-align:left; box-shadow:none; }
+  .home .box h2 { display:none; }
+  #login .lbl { color:#ddd; font-size:13px; }
+  #login input { width:100%; background:#111; color:#fff; border:1px solid #3a3a3a; border-radius:8px; padding:12px; }
+  #loginBtn { width:100%; background:#e23b2f; border:0; color:#fff; border-radius:8px; min-height:46px; font-weight:700; }
+  .portal-note { color:#9a9a9a; font-size:13px; margin-top:18px; }
+  @media (max-width:800px) { .portal-nav { display:none; } .home h1 { font-size:28px; } #loginBtn { width:100%; min-height:48px; font-size:16px; } #login input { font-size:16px; min-height:44px; } }
   .who { font-size:12px; color:var(--muted); }
   .suggest { position:absolute; left:0; right:0; top:100%; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); z-index:30; max-height:220px; overflow:auto; }
   .suggest button { display:block; width:100%; text-align:left; border:0; background:#fff; padding:8px 10px; cursor:pointer; }
@@ -288,30 +303,39 @@
   <section id="users" class="hidden"><div class="card" id="usersCard"></div></section>
   <section id="company" class="hidden"><div class="card" id="companyCard"></div></section>
 </main>
-<div id="login"><div class="home">
-  <div class="home-brand">
-    <div class="home-logo" id="homeLogo">C</div>
-    <div>
-      <h1 id="homeTitle">Carne Trade Book</h1>
-      <div class="sub">Daily purchases, invoices, cash and profit</div>
-    </div>
-    <div class="co" id="homeCompany"></div>
+<div id="login">
+  <div class="portal-top">
+    <a class="portal-logo" href="https://carne.co.in"><small>CARNE</small><b>Fres.Ca</b></a>
+    <nav class="portal-nav">
+      <a href="https://carne.co.in">Home</a>
+      <a href="https://carne.co.in">Products</a>
+      <a href="https://carne.co.in">About</a>
+      <a href="https://carne.co.in">Contact</a>
+      <a class="portal-order" href="https://carne.co.in">Order Now</a>
+    </nav>
   </div>
-  <div class="box" id="loginForm">
-    <h2>Login</h2>
-    <div class="actions"><button class="btn ghost" id="connectServer" type="button">Connect to server</button></div>
-    <div class="lbl" style="margin-top:8px;">User name</div><input id="loginUser" autocomplete="username" enterkeyhint="next" />
-    <div class="lbl" style="margin-top:8px;">Password</div><input id="loginPass" type="password" autocomplete="current-password" enterkeyhint="go" />
-    <div class="actions"><button class="btn primary" id="loginBtn" type="button">Login</button></div>
-    <button class="btn tiny" id="forgotBtn" type="button">Forgot password</button>
-    <div id="forgotBox" class="hidden" style="margin-top:12px;">
-      <div class="lbl">User name</div><input id="forgotUser" />
-      <div class="lbl" style="margin-top:8px;">New password</div><input id="forgotPass" type="password" />
-      <div class="actions"><button class="btn ghost" id="forgotSend" type="button">Request reset</button></div>
+  <div class="home">
+    <div class="home-logo" id="homeLogo"></div>
+    <div class="portal-mark"><small>CARNE</small><b>Fres.Ca</b></div>
+    <h1 id="homeTitle">Internal Portal</h1>
+    <div class="portal-sub">Staff & Management Access</div>
+    <div class="box" id="loginForm">
+      <h2>Login</h2>
+      <div class="lbl">User name</div><input id="loginUser" autocomplete="username" enterkeyhint="next" />
+      <div class="lbl" style="margin-top:12px;">Password</div><input id="loginPass" type="password" autocomplete="current-password" enterkeyhint="go" />
+      <div class="actions"><button class="btn primary" id="loginBtn" type="button">Sign In</button></div>
+      <button class="btn tiny" id="forgotBtn" type="button" style="color:#bbb;background:transparent;">Forgot password</button>
+      <div id="forgotBox" class="hidden" style="margin-top:12px;">
+        <div class="lbl">User name</div><input id="forgotUser" />
+        <div class="lbl" style="margin-top:8px;">New password</div><input id="forgotPass" type="password" />
+        <div class="actions"><button class="btn ghost" id="forgotSend" type="button">Request reset</button></div>
+      </div>
+      <div class="hint" id="loginMsg"></div>
     </div>
-    <div class="hint" id="loginMsg"></div>
+    <div class="portal-note">This portal is for Carne staff only.</div>
+    <div class="co" id="homeCompany" style="display:none"></div>
   </div>
-</div></div>
+</div>
 <div id="printMount"></div>
 <button id="askBtn" type="button" class="hidden" aria-label="Open Carne assistant">
   <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -515,11 +539,14 @@ function allowed(tab) {
 }
 function paintHome() {
   const c = state.company || companyDefault;
-  const logo = document.getElementById("homeLogo");
-  if (logo) logo.innerHTML = c.logo ? '<img src="'+c.logo+'" alt="Logo" />' : "C";
+  const mark = c.logo ? '<img src="'+c.logo+'" alt="Logo" />' : '<small>CARNE</small><b>Fres.Ca</b>';
+  const top = document.querySelector(".portal-logo");
+  const mid = document.querySelector(".portal-mark");
+  if (top) top.innerHTML = mark;
+  if (mid) mid.innerHTML = mark;
   const box = document.getElementById("homeCompany");
   const title = document.getElementById("homeTitle");
-  if (title) title.textContent = c.title || "Carne Trade Book";
+  if (title) title.textContent = "Internal Portal";
   if (box) box.innerHTML = "<b>"+esc(c.name||"CARNE")+"</b><br>"+esc(c.lines||"").replace(/\n/g,"<br>")+"<br>GSTIN "+esc(c.gstin||"—")+"<br>"+esc(c.web||"");
 }
 function hideLogin() {
@@ -4055,7 +4082,8 @@ async function connectToServer() {
     if (msg) msg.textContent = "Could not connect. Open this site on Netlify, then try again.";
   }
 }
-document.getElementById("connectServer").onclick = connectToServer;
+const connectBtn = document.getElementById("connectServer");
+if (connectBtn) connectBtn.onclick = connectToServer;
 seedUsers().then(applyAccess);
 async function saveAndLoad() {
   setCloudStatus("Saving...");

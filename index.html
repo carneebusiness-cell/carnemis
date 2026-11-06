@@ -214,8 +214,10 @@
     <div class="card">
       <div class="guide" id="guide"><div><b>Daily steps.</b> Pick the date, enter purchases with a vendor, add customer dispatch, then Save this day. Use New invoice only when you need a tax invoice.</div><button class="btn tiny" id="hideGuide" type="button">Hide</button></div>
       <div class="card" id="cloudCard" style="margin-bottom:14px;">
-        <h2>Saved in this browser <span class="hint" id="cloudStatus">On this device</span></h2>
-        <p class="note">The book is on carne.co.in through GitHub. Entries stay in this browser. Use the same phone or computer to see them again.</p>
+        <h2>Google Sheet <span class="hint" id="cloudStatus">Not connected</span></h2>
+        <p class="note">Paste the Apps Script web app URL. Save writes the book to the Sheet. Load brings it back on any device.</p>
+        <div class="lbl">Script URL</div><input id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec" />
+        <div class="actions"><button class="btn tiny" id="saveSheetUrl" type="button">Save URL</button><button class="btn primary" id="sheetSave" type="button">Save to Sheet</button><button class="btn ghost" id="sheetLoad" type="button">Load from Sheet</button></div>
       </div>
       <div class="card" id="carcassSplitCard" style="margin-bottom:14px;"></div>
       <h2 id="entryTitle">B2B day entry <span class="hint" id="entryHint">Daily entry</span></h2>
@@ -826,10 +828,9 @@ async function pushCloud() {
 }
 let cloudTimer = 0;
 function queueCloud() {
-  const cfg = cloudConfig();
-  if (!cfg.code || !cfg.password) return;
+  if (!sheetUrl()) return;
   clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(() => pushCloud().catch(err => setCloudStatus(err.message)), 1200);
+  cloudTimer = setTimeout(() => pushSheet().catch(err => setCloudStatus(err.message)), 1500);
 }
 async function pullCloud() {
   const cfg = cloudConfig();
@@ -849,6 +850,32 @@ async function pullCloud() {
   return false;
 }
 
+
+const SHEET_KEY = "carne-sheet-url";
+function sheetUrl() { return localStorage.getItem(SHEET_KEY) || ""; }
+function setSheetUrl(url) { localStorage.setItem(SHEET_KEY, url.trim()); }
+async function pushSheet() {
+  const url = sheetUrl();
+  if (!url) return;
+  setCloudStatus("Saving...");
+  const res = await fetch(url, { method: "POST", body: JSON.stringify({ secret: "carne-book", state }) });
+  const text = await res.text();
+  if (!res.ok || /error/i.test(text) && /bad secret|Exception/i.test(text)) throw new Error("Sheet save failed");
+  setCloudStatus("Saved to Sheet");
+}
+async function pullSheet() {
+  const url = sheetUrl();
+  if (!url) throw new Error("Paste the Script URL first");
+  setCloudStatus("Loading...");
+  const res = await fetch(url + (url.includes("?") ? "&" : "?") + "t=" + Date.now());
+  const pack = await res.json();
+  if (!pack || !pack.ok) throw new Error((pack && pack.error) || "Could not load the Sheet");
+  if (!pack.state) { setCloudStatus("Connected. Sheet is empty."); return false; }
+  state = pack.state;
+  localStorage.setItem(KEY, JSON.stringify(state));
+  setCloudStatus("Loaded from Sheet");
+  return true;
+}
 function toast(msg) {
   let el = document.getElementById("toast");
   if (!el) { el = document.createElement("div"); el.id = "toast"; el.className = "toast"; document.body.appendChild(el); }
@@ -4120,9 +4147,15 @@ async function saveAndLoad() {
     alert("Could not connect. Open this site on Netlify, then try again.");
   }
 }
-const syncBtn = document.getElementById("syncServer");
-if (syncBtn) syncBtn.onclick = saveAndLoad;
-setCloudStatus("On this device");
+const sheetBox = document.getElementById("sheetUrl");
+if (sheetBox) sheetBox.value = sheetUrl();
+const saveUrlBtn = document.getElementById("saveSheetUrl");
+if (saveUrlBtn) saveUrlBtn.onclick = () => { setSheetUrl(document.getElementById("sheetUrl").value); setCloudStatus(sheetUrl() ? "URL saved" : "Not connected"); toast("Script URL saved on this device."); };
+const sheetSaveBtn = document.getElementById("sheetSave");
+if (sheetSaveBtn) sheetSaveBtn.onclick = () => pushSheet().then(() => toast("Saved to Google Sheet.")).catch(err => { setCloudStatus(err.message); alert(err.message); });
+const sheetLoadBtn = document.getElementById("sheetLoad");
+if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from Google Sheet."); } }).catch(err => { setCloudStatus(err.message); alert(err.message); });
+setCloudStatus(sheetUrl() ? "URL saved" : "Not connected");
 document.getElementById("addVendorToday").onclick = () => {
   const name = prompt("Vendor name");
   if (!name || !name.trim()) return;

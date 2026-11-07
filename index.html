@@ -576,7 +576,7 @@ function shrinkLogo(dataUrl) {
 }
 function paintHome() {
   const c = state.company || companyDefault;
-  const mark = c.logo ? '<img src="'+c.logo+'" alt="Logo" />' : '<small>CARNE</small><b>Fres.Ca</b>';
+  const mark = (c.homeLogo || "") ? '<img src="'+c.homeLogo+'" alt="Logo" />' : '<small>CARNE</small><b>Fres.Ca</b>';
   const top = document.querySelector(".portal-logo");
   const mid = document.querySelector(".portal-mark");
   if (top) top.innerHTML = mark;
@@ -745,10 +745,15 @@ function paintCompany() {
       <div><div class="lbl">Website</div><input id="coWeb" value="${esc(c.web||"")}" /></div>
     </div>
     <div class="lbl" style="margin-top:8px;">Signatory</div><input id="coSign" value="${esc(c.signatory||"")}" />
-    <div class="sec">Logo</div>
+    <div class="sec">Home page logo</div>
     <div style="display:flex;gap:12px;align-items:center;">
-      <div class="home-logo" id="coLogo">${c.logo?`<img src="${c.logo}" alt="Logo" />`:"C"}</div>
-      <div><input id="coLogoFile" type="file" accept="image/*" /><button class="btn tiny" id="coLogoClear" type="button">Remove logo</button></div>
+      <div class="home-logo" id="coLogo" style="width:64px;height:64px;">${c.homeLogo?`<img src="${c.homeLogo}" alt="Home logo" />`:"C"}</div>
+      <div><input id="coLogoFile" type="file" accept="image/*" /><button class="btn tiny" id="coLogoClear" type="button">Remove home logo</button><div class="hint">Shown on the login page and the top bar.</div></div>
+    </div>
+    <div class="sec">Invoice logo</div>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <div class="logo" id="coInvLogo">${(c.invoiceLogo||c.logo)?`<img src="${c.invoiceLogo||c.logo}" alt="Invoice logo" />`:"C"}</div>
+      <div><input id="coInvLogoFile" type="file" accept="image/*" /><button class="btn tiny" id="coInvLogoClear" type="button">Remove invoice logo</button><div class="hint">Used only on tax invoices.</div></div>
     </div>
     <div class="sec">Database</div>
     <div class="lbl">Supabase</div><input id="companySheetUrl" readonly value="https://eigcbksnkymwpluqpokm.supabase.co" />
@@ -770,10 +775,18 @@ function paintCompany() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.logo = small; persist(); paintCompany(); paintHome(); pushSheet().then(() => toast("Logo saved to database.")).catch(err => alert(err.message)); });
+    reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.homeLogo = small; persist(); paintCompany(); paintHome(); applyBrandLogo(); pushSheet().then(() => toast("Home logo saved to database.")).catch(err => alert(err.message)); });
     reader.readAsDataURL(file);
   };
-  document.getElementById("coLogoClear").onclick = () => { state.company.logo = ""; persist(); paintCompany(); paintHome(); };
+  document.getElementById("coLogoClear").onclick = () => { state.company.homeLogo = ""; persist(); paintCompany(); paintHome(); applyBrandLogo(); pushSheet().catch(()=>{}); };
+  document.getElementById("coInvLogoFile").onchange = e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.invoiceLogo = small; persist(); paintCompany(); paintInvoice(); pushSheet().then(() => toast("Invoice logo saved to database.")).catch(err => alert(err.message)); });
+    reader.readAsDataURL(file);
+  };
+  document.getElementById("coInvLogoClear").onclick = () => { state.company.invoiceLogo = ""; state.company.logo = ""; persist(); paintCompany(); paintInvoice(); pushSheet().catch(()=>{}); };
 }
 
 function paintUsers() {
@@ -3456,7 +3469,7 @@ function paintDues() {
 function applyBrandLogo() {
   const mark = document.getElementById("brandMark");
   if (!mark) return;
-  mark.innerHTML = state.company && state.company.logo ? '<img src="' + state.company.logo + '" alt="Logo" />' : "C";
+  mark.innerHTML = state.company && state.company.homeLogo ? '<img src="' + state.company.homeLogo + '" alt="Logo" />' : "C";
 }
 
 function invoiceQr(inv) {
@@ -3479,7 +3492,7 @@ function invoiceHTML(inv) {
     : (inv.items||[]).map((it,i) => `<tr><td>${i+1}</td><td>${esc(it.name)}</td><td>${esc(it.hsn||"—")}</td><td class="num">${num(it.qty)+" "+esc(it.unit||"")}</td><td class="num">${num(it.rate)}</td><td class="num">${money(itemAmount(it))}</td></tr>`).join("");
   const c = state.company;
   return `<div class="inv-sheet">
-    <div class="inv-top"><div style="display:flex;gap:12px;"><div class="logo">${c.logo ? `<img src="${c.logo}" alt="Company logo" />` : `C<span class="a"></span><span class="b"></span>`}</div>
+    <div class="inv-top"><div style="display:flex;gap:12px;"><div class="logo">${(c.invoiceLogo||c.logo) ? `<img src="${c.invoiceLogo||c.logo}" alt="Company logo" />` : `C<span class="a"></span><span class="b"></span>`}</div>
       <div class="co"><b>${esc(c.name)}</b><small>${esc(c.lines).replace(/\n/g,"<br>")}</small><small>GSTIN ${esc(c.gstin)}</small><small>${esc(c.web)}</small></div></div>
       <div class="tax">TAX INVOICE</div></div>
     <table class="meta"><tr><td>Invoice No<br><b>: ${esc(inv.number)}</b></td><td>Place of Supply<br><b>: ${esc(inv.place||c.place)}</b></td></tr>
@@ -3509,7 +3522,7 @@ function paintInvoice() {
   document.getElementById("invForm").innerHTML = `<h2>Tax invoice <span class="hint" id="draftHint">${state.invoiceDraft?"Draft saved":"CARNE format"}</span></h2>
     <div class="sec">Company logo</div>
     <div style="display:flex;gap:12px;align-items:center;">
-      <div class="logo" id="logoPreview">${state.company.logo ? `<img src="${state.company.logo}" alt="Logo" />` : "C"}</div>
+      <div class="logo" id="logoPreview">${(state.company.invoiceLogo||state.company.logo) ? `<img src="${state.company.invoiceLogo||state.company.logo}" alt="Logo" />` : "C"}</div>
       <div>
         <input id="logoFile" type="file" accept="image/*" />
         <button class="btn tiny" id="removeLogo" type="button">Remove logo</button>
@@ -3584,10 +3597,10 @@ function paintInvoice() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => { state.company.logo = reader.result; persist(); applyBrandLogo(); paintInvoice(); };
+    reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.invoiceLogo = small; persist(); paintInvoice(); pushSheet().then(() => toast("Invoice logo saved.")).catch(err => alert(err.message)); });
     reader.readAsDataURL(file);
   };
-  document.getElementById("removeLogo").onclick = () => { state.company.logo = ""; persist(); applyBrandLogo(); paintInvoice(); };
+  document.getElementById("removeLogo").onclick = () => { state.company.invoiceLogo = ""; state.company.logo = ""; persist(); paintInvoice(); pushSheet().catch(()=>{}); };
   document.getElementById("invUpload").onchange = e => { const f = e.target.files && e.target.files[0]; if (f) importInvoiceFile(f); };
   document.getElementById("invTemplate").onclick = downloadInvoiceTemplate;
   document.getElementById("invPhoto").onchange = e => {

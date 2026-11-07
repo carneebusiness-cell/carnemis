@@ -22,6 +22,14 @@
   .nav button.on { background:var(--card); color:var(--ink); box-shadow:var(--shadow); }
   .guide { background:#fffdf9; border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; gap:12px; align-items:center; }
   .toast { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#1c1712; color:#fff; border-radius:14px; padding:16px 18px; z-index:200; box-shadow:var(--shadow); max-width:min(420px,90vw); text-align:center; }
+  #loader { position:fixed; inset:0; z-index:180; display:none; place-items:center; background:rgba(17,17,17,.45); }
+  #loader.on { display:grid; }
+  .spin-card { background:#fffdf9; border-radius:18px; padding:22px 26px; text-align:center; box-shadow:0 16px 40px rgba(0,0,0,.18); min-width:180px; }
+  .spin { width:42px; height:42px; margin:0 auto 10px; border-radius:50%; border:4px solid #eadfce; border-top-color:#e23b2f; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  button.btn { transition:transform .12s ease, background .12s ease; }
+  button.btn:active { transform:scale(.98); }
+  .card { transition:box-shadow .15s ease; }
   #login { position:fixed; inset:0; z-index:50; overflow:auto; background:#111; color:#fff; }
   #login.hidden, #login.off { display:none !important; pointer-events:none !important; visibility:hidden !important; }
   .portal-top { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 28px; background:#3b2418; }
@@ -361,12 +369,14 @@
   <div id="askLog"></div>
   <form id="askForm"><input id="askInput" placeholder="Ask or tell Carne what to open" /><button class="btn primary" type="submit">Send</button></form>
 </div>
+<div id="loader"><div class="spin-card"><div class="spin"></div><div id="loaderText">Loading...</div></div></div>
 <div id="errBanner" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;background:#9b2c2c;color:#fff;padding:16px 18px;border-radius:14px;max-width:min(420px,90vw);text-align:center;"></div>
 <script>
 window.startLogin = function (e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   var msg = document.getElementById("loginMsg");
   if (msg) msg.textContent = "Checking...";
+  showLoad("Signing in...");
   if (window.doLogin) window.doLogin();
   else if (msg) msg.textContent = "Still loading. Tap Login once more.";
 };
@@ -546,6 +556,24 @@ function allowed(tab) {
   if (u.role === "admin") return true;
   return (u.access || ENTRY_TABS).includes(tab);
 }
+function shrinkLogo(dataUrl) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const size = 160;
+      const canvas = document.createElement("canvas");
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const scale = Math.min(size / img.width, size / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
 function paintHome() {
   const c = state.company || companyDefault;
   const mark = c.logo ? '<img src="'+c.logo+'" alt="Logo" />' : '<small>CARNE</small><b>Fres.Ca</b>';
@@ -666,6 +694,7 @@ async function doLogin() {
   try {
     const lock = lockInfo();
     if (lock.until && Date.now() < lock.until) { document.getElementById("loginMsg").textContent = "Too many tries. Wait 5 minutes, or upload this latest site."; return; }
+    try { await pullSheet(); } catch (e) { setCloudStatus(e.message || "Could not load database"); }
     await seedUsers();
     const name = document.getElementById("loginUser").value.trim();
     const pass = document.getElementById("loginPass").value;
@@ -674,7 +703,7 @@ async function doLogin() {
     const salted = await hashPass(pass, user.salt);
     const legacy = await legacyHash(pass);
     const defaults = { admin:"admin123", entry:"entry123" };
-    const isDefault = defaults[user.name.toLowerCase()] === pass;
+    const isDefault = !user.hash && defaults[user.name.toLowerCase()] === pass;
     if (user.hash !== salted && user.hash !== legacy && !isDefault) {
       const fails = (lock.count || 0) + 1;
       setLock(fails >= 5 ? { count: 0, until: Date.now() + 5*60*1000 } : { count: fails });
@@ -698,8 +727,10 @@ async function doLogin() {
     hideLogin();
     if (user.mustChange) toast("Change the default password from Users.");
     applyAccess();
-    pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded latest book from database."); } }).catch(err => setCloudStatus(err.message));
+    fillForm();
+    paintHome();
   } catch (err) { const m = document.getElementById("loginMsg"); if (m) m.textContent = err.message; else alert(err.message); }
+  finally { hideLoad(); }
 }
 
 function paintCompany() {
@@ -733,13 +764,13 @@ function paintCompany() {
     state.company.gstin = document.getElementById("coGst").value.trim();
     state.company.web = document.getElementById("coWeb").value.trim();
     state.company.signatory = document.getElementById("coSign").value.trim();
-    persist(); paintHome(); toast("Company saved. It appears on the home page.");
+    persist(); paintHome(); pushSheet().then(() => toast("Company saved to database.")).catch(err => alert(err.message));
   };
   document.getElementById("coLogoFile").onchange = e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => { state.company.logo = reader.result; persist(); paintCompany(); paintHome(); };
+    reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.logo = small; persist(); paintCompany(); paintHome(); pushSheet().then(() => toast("Logo saved to database.")).catch(err => alert(err.message)); });
     reader.readAsDataURL(file);
   };
   document.getElementById("coLogoClear").onclick = () => { state.company.logo = ""; persist(); paintCompany(); paintHome(); };
@@ -770,7 +801,9 @@ function paintUsers() {
     state.users[i].access = [...row.querySelectorAll("[data-access]:checked")].map(x => x.dataset.access);
     const pass = row.querySelector("[data-k=pass]").value;
     if (pass) { state.users[i].salt = Math.random().toString(36).slice(2); state.users[i].hash = await hashPass(pass, state.users[i].salt); state.users[i].mustChange = false; state.users[i].session = ""; }
-    persist(); toast("Login saved."); paintUsers();
+    persist();
+    pushSheet().then(() => toast("Login saved to database. Other systems will use it on next sign in.")).catch(err => alert(err.message));
+    paintUsers();
   });
   document.getElementById("usersCard").querySelectorAll("[data-approve]").forEach(b => b.onclick = () => {
     const i = Number(b.dataset.approve);
@@ -821,6 +854,8 @@ async function decryptState(password, pack) {
   return JSON.parse(new TextDecoder().decode(buf));
 }
 function setCloudStatus(text) { const el = document.getElementById("cloudStatus"); if (el) el.textContent = text; }
+function showLoad(text) { const box = document.getElementById("loader"); const label = document.getElementById("loaderText"); if (label) label.textContent = text || "Loading..."; if (box) box.classList.add("on"); }
+function hideLoad() { const box = document.getElementById("loader"); if (box) box.classList.remove("on"); }
 async function pushCloud() {
   const cfg = cloudConfig();
   if (!cfg.code || !cfg.password) return;
@@ -864,21 +899,27 @@ function sbHeaders() {
 }
 async function pushSheet() {
   setCloudStatus("Saving...");
-  const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main", { method: "PATCH", headers: sbHeaders(), body: JSON.stringify({ data: state, updated_at: new Date().toISOString() }) });
-  if (!res.ok) throw new Error("Database save failed. Run the table SQL in Supabase first.");
-  setCloudStatus("Saved to database");
+  showLoad("Saving to database...");
+  try {
+    const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main", { method: "PATCH", headers: sbHeaders(), body: JSON.stringify({ data: state, updated_at: new Date().toISOString() }) });
+    if (!res.ok) { const errText = await res.text(); throw new Error("Database save failed. " + errText.slice(0, 180)); }
+    setCloudStatus("Saved to database");
+  } finally { hideLoad(); }
 }
 async function pullSheet() {
   setCloudStatus("Loading...");
-  const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main&select=data", { headers: sbHeaders() });
-  if (!res.ok) throw new Error("Could not load the database.");
-  const rows = await res.json();
-  const data = rows && rows[0] && rows[0].data;
-  if (!data || !Object.keys(data).length) { setCloudStatus("Connected. Database is empty."); return false; }
-  state = data;
-  localStorage.setItem(KEY, JSON.stringify(state));
-  setCloudStatus("Loaded from database");
-  return true;
+  showLoad("Loading book...");
+  try {
+    const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main&select=data", { headers: sbHeaders() });
+    if (!res.ok) throw new Error("Could not load the database.");
+    const rows = await res.json();
+    const data = rows && rows[0] && rows[0].data;
+    if (!data || !Object.keys(data).length) { setCloudStatus("Connected. Database is empty."); return false; }
+    state = data;
+    localStorage.setItem(KEY, JSON.stringify(state));
+    setCloudStatus("Loaded from database");
+    return true;
+  } finally { hideLoad(); }
 }
 function toast(msg) {
   let el = document.getElementById("toast");

@@ -339,6 +339,7 @@
         <div class="actions"><button class="btn ghost" id="forgotSend" type="button">Request reset</button></div>
       </div>
       <div class="hint" id="loginMsg"></div>
+      <div class="actions"><button class="btn ghost" id="loginLoad" type="button">Load data</button></div>
     </div>
     <div class="portal-note">This portal is for Carne staff only.</div>
     <div class="co" id="homeCompany" style="display:none"></div>
@@ -695,7 +696,14 @@ async function doLogin() {
   try {
     const lock = lockInfo();
     if (lock.until && Date.now() < lock.until) { document.getElementById("loginMsg").textContent = "Too many tries. Wait 5 minutes, or upload this latest site."; return; }
-    try { await pullSheet(); } catch (e) { setCloudStatus(e.message || "Could not load database"); }
+    try {
+      const loaded = await pullSheet();
+      const msg = document.getElementById("loginMsg");
+      if (msg) msg.textContent = loaded ? "Book loaded from database." : "Database is empty.";
+    } catch (e) {
+      const msg = document.getElementById("loginMsg");
+      if (msg) msg.textContent = e.message || "Could not load database";
+    }
     await seedUsers();
     const name = document.getElementById("loginUser").value.trim();
     const pass = document.getElementById("loginPass").value;
@@ -4206,6 +4214,8 @@ async function saveAndLoad() {
     alert("Could not connect. Open this site on Netlify, then try again.");
   }
 }
+const loginLoad = document.getElementById("loginLoad");
+if (loginLoad) loginLoad.onclick = () => pullSheet().then(loaded => { const msg = document.getElementById("loginMsg"); if (msg) msg.textContent = loaded ? "Book loaded. Sign in with the saved password." : "Database is empty."; }).catch(err => { const msg = document.getElementById("loginMsg"); if (msg) msg.textContent = err.message; });
 const sheetLoadBtn = document.getElementById("sheetLoad");
 if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from database."); } else toast("Database is empty."); }).catch(err => { setCloudStatus(err.message); alert(err.message); });
 setCloudStatus("Ready");

@@ -572,13 +572,33 @@ function shrinkLogo(dataUrl) {
     img.src = dataUrl;
   });
 }
+const BRAND_KEY = "carne-brand";
+function brandCache() { try { return JSON.parse(localStorage.getItem(BRAND_KEY) || "{}") || {}; } catch (e) { return {}; } }
+function homeLogoSrc() {
+  if (typeof dbReady !== "undefined" && dbReady && state.company) {
+    const v = state.company.homeLogo || "";
+    try { localStorage.setItem(BRAND_KEY, JSON.stringify({ homeLogo: v })); } catch (e) {}
+    return v;
+  }
+  return (state.company && state.company.homeLogo) || brandCache().homeLogo || "";
+}
+async function loadPublicBrand() {
+  try {
+    const r = await fetch(SB_URL + "/rest/v1/rpc/public_branding", { method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" }, body: "{}" });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (j && typeof j === "object") { try { localStorage.setItem(BRAND_KEY, JSON.stringify({ homeLogo: j.homeLogo || "" })); } catch (e) {} paintHome(); }
+  } catch (e) {}
+}
 function paintHome() {
   const c = state.company || companyDefault;
-  const mark = (c.homeLogo || "") ? '<img src="'+c.homeLogo+'" alt="Logo" />' : '<small>CARNE</small><b>Fres.Ca</b>';
+  const logoSrc = homeLogoSrc();
+  const mark = logoSrc ? '<img src="'+logoSrc+'" alt="Logo" />' : '<small>CARNE</small><b>Fres.Ca</b>';
   const top = document.querySelector(".portal-logo");
   const mid = document.querySelector(".portal-mark");
   if (top) top.innerHTML = mark;
   if (mid) mid.innerHTML = mark;
+  applyBrandLogo();
   const box = document.getElementById("homeCompany");
   const title = document.getElementById("homeTitle");
   if (title) title.textContent = "Internal Portal";
@@ -3752,7 +3772,8 @@ function paintDues() {
 function applyBrandLogo() {
   const mark = document.getElementById("brandMark");
   if (!mark) return;
-  mark.innerHTML = state.company && state.company.homeLogo ? '<img src="' + state.company.homeLogo + '" alt="Logo" />' : "C";
+  const src = homeLogoSrc();
+  mark.innerHTML = src ? '<img src="' + src + '" alt="Logo" />' : "C";
 }
 
 function invoiceQr(inv) {
@@ -4431,7 +4452,7 @@ window.doLogout = async function (note) {
   ["carne-profile", "carne-seen"].forEach(k => sessionStorage.removeItem(k));
   try { localStorage.removeItem(KEY); localStorage.removeItem(BASE_KEY); } catch (e) {}
   state = blankState(); draft = blankInvoice(); form = blank(); form.date = today(); form.channel = "b2b";
-  showLogin();
+  showLogin(); paintHome();
   const header = document.querySelector("header.app");
   if (header) header.style.display = "none";
   const who = document.getElementById("who");
@@ -4551,6 +4572,7 @@ if (state.invoiceDraft && state.invoiceDraft.id) draft = state.invoiceDraft;
 syncVendorPurchases();
 persist();
 applyBrandLogo();
+loadPublicBrand();
 updateEntryChrome();
 fillForm();
 document.getElementById("menuBtn").onclick = () => document.getElementById("mainNav").classList.toggle("open");

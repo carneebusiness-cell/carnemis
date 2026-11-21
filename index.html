@@ -329,17 +329,16 @@
     <div class="portal-sub">Staff & Management Access</div>
     <div class="box" id="loginForm">
       <h2>Login</h2>
-      <div class="lbl">User name</div><input id="loginUser" autocomplete="username" enterkeyhint="next" />
-      <div class="lbl" style="margin-top:12px;">Password</div><input id="loginPass" type="password" autocomplete="current-password" enterkeyhint="go" />
-      <div class="actions"><button class="btn primary" id="loginBtn" type="button">Sign In</button></div>
-      <button class="btn tiny" id="forgotBtn" type="button" style="color:#bbb;background:transparent;">Forgot password</button>
-      <div id="forgotBox" class="hidden" style="margin-top:12px;">
-        <div class="lbl">User name</div><input id="forgotUser" />
-        <div class="lbl" style="margin-top:8px;">New password</div><input id="forgotPass" type="password" />
-        <div class="actions"><button class="btn ghost" id="forgotSend" type="button">Request reset</button></div>
+      <div class="lbl">Email</div><input id="loginUser" type="email" autocomplete="username" enterkeyhint="go" />
+      <input id="loginPass" type="hidden" />
+      <div class="hint" id="emailHint">Type your registered email. A one-time code is sent to it. No password needed.</div>
+      <div id="otpBox" class="hidden" style="margin-top:12px;">
+        <div class="lbl">One-time code from your email</div>
+        <input id="loginOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="10" />
+        <div class="actions"><button class="btn primary" id="otpVerify" type="button">Verify &amp; Sign In</button><button class="btn ghost" id="otpResend" type="button">Send again</button></div>
       </div>
+      <div class="actions"><button class="btn primary" id="loginBtn" type="button">Send Code</button></div>
       <div class="hint" id="loginMsg"></div>
-      <div class="actions"><button class="btn ghost" id="loginLoad" type="button">Load data</button></div>
     </div>
     <div class="portal-note">This portal is for Carne staff only.</div>
     <div class="co" id="homeCompany" style="display:none"></div>
@@ -399,6 +398,16 @@ const ACCESS = [
   ["customer","Customer P&L"],["history","History"]
 ];
 const ENTRY_TABS = ["b2b","b2c","inventory","products"];
+const ALL_TABS = ACCESS.map(a => a[0]);
+/* Levels. write = add/edit, del = delete/clear, settings = company, users, backup/import */
+const ROLES = {
+  admin:      { label:"Owner",      perms:{ write:true,  del:true,  settings:true  }, access: ALL_TABS },
+  manager:    { label:"Manager",    perms:{ write:true,  del:true,  settings:false }, access: ALL_TABS },
+  accountant: { label:"Accountant", perms:{ write:true,  del:false, settings:false }, access: ["summary","invoice","invoicelist","customers","dues","vendors","cash","rates","report","customer"] },
+  entry:      { label:"Entry",      perms:{ write:true,  del:false, settings:false }, access: ENTRY_TABS },
+  viewer:     { label:"Viewer",     perms:{ write:false, del:false, settings:false }, access: ["summary","report","customer"] }
+};
+let booting = true;
 const KEY = "carne-trade-book-v2";
 const money = n => "₹" + (Number(n)||0).toLocaleString("en-IN",{maximumFractionDigits:0});
 const num = n => (Number(n)||0).toLocaleString("en-IN",{maximumFractionDigits:2});
@@ -496,11 +505,16 @@ function clearInvoiceDraft() {
 function loadState() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return Object.assign(seed(), JSON.parse(raw));
+    if (raw && sessionStorage.getItem("carne-profile")) return normalizeState(Object.assign(seed(), JSON.parse(raw)));
+    if (raw) { localStorage.removeItem(KEY); localStorage.removeItem("carne-trade-book-base"); }
   } catch (e) {}
-  return seed();
+  return blankState();
 }
-function persist() { localStorage.setItem(KEY, JSON.stringify(state)); queueCloud(); }
+function persist(system) {
+  if (!system && !booting && currentUser() && !perm("write")) { revertReadOnly(); return; }
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Browser storage is full. Changes are not kept on this device."); }
+  queueCloud();
+}
 
 function plainHash(text) {
   let h = 5381;
@@ -524,33 +538,15 @@ function sessionFresh() {
   const seen = Number(sessionStorage.getItem("carne-seen") || 0);
   return seen && Date.now() - seen < 30 * 60 * 1000;
 }
-function ensureUsers() {
-  if (!Array.isArray(state.users) || !state.users.length) {
-    state.users = [
-      { name:"Admin", role:"admin", hash:"", salt:"admin-salt", access: ACCESS.map(a => a[0]) },
-      { name:"Entry", role:"entry", hash:"", salt:"entry-salt", access: ENTRY_TABS.slice() }
-    ];
-  }
-  state.users.forEach(u => {
-    if (!u.salt) u.salt = Math.random().toString(36).slice(2);
-    if (!Array.isArray(u.access)) u.access = u.role === "admin" ? ACCESS.map(a => a[0]) : ENTRY_TABS.slice();
-  });
-}
-async function seedUsers() {
-  ensureUsers();
-  for (const u of state.users) {
-    if (!u.hash && u.name === "Admin") { u.salt = u.salt || "admin-salt"; u.hash = await hashPass("admin123", u.salt); u.mustChange = true; }
-    if (!u.hash && u.name === "Entry") { u.salt = u.salt || "entry-salt"; u.hash = await hashPass("entry123", u.salt); u.mustChange = true; }
-  }
-  persist();
-}
+function ensureUsers() {}
+async function seedUsers() {}
 function currentUser() {
-  if (activeUser) return activeUser;
-  const name = sessionStorage.getItem("carne-user") || "";
-  const proof = sessionStorage.getItem("carne-proof") || "";
-  if (!name || !proof || !sessionFresh()) return null;
-  return (state.users||[]).find(u => u.name.toLowerCase() === name.toLowerCase() && u.session === proof) || null;
+  if (activeUser) { if (sessionFresh()) return activeUser; activeUser = null; return null; }
+  if (!sbSession || !sessionFresh()) return null;
+  try { const p = JSON.parse(sessionStorage.getItem("carne-profile") || "null"); if (p && p.email === sbSession.email) { activeUser = p; return p; } } catch (e) {}
+  return null;
 }
+function sessionEnded() { if (window.doLogout) window.doLogout("Session ended. Sign in again."); }
 function allowed(tab) {
   const u = currentUser();
   if (!u) return false;
@@ -671,7 +667,7 @@ function applyAccess() {
   if (u) hideLogin(); else showLogin();
   showAsk(!!u);
   const who = document.getElementById("who");
-  if (who) who.textContent = u ? u.name + " · " + u.role : "";
+  if (who) who.textContent = u ? u.name + " · " + (ROLES[u.role] || ROLES.entry).label : "";
   document.querySelectorAll(".nav button[data-tab]").forEach(b => {
     b.classList.toggle("hidden", !allowed(b.dataset.tab));
   });
@@ -679,10 +675,11 @@ function applyAccess() {
   if (cloud) cloud.classList.toggle("hidden", !u);
   const live = document.getElementById("liveCard");
   if (live) live.classList.toggle("hidden", !allowed("summary"));
-  if (u && u.role === "entry") {
+  if (u && u.role !== "admin") {
     const on = document.querySelector(".nav button.on");
-    if (!on || !allowed(on.dataset.tab)) document.querySelector('[data-tab="b2b"]').click();
+    if (!on || !allowed(on.dataset.tab)) { const first = Array.from(document.querySelectorAll(".nav button[data-tab]")).find(b => allowed(b.dataset.tab)); if (first) first.click(); }
   }
+  if (typeof applyPerms === "function") applyPerms();
 }
 async function legacyHash(password) {
   const text = "carne|" + password;
@@ -692,53 +689,84 @@ async function legacyHash(password) {
   }
   return plainHash(text);
 }
-async function doLogin() {
+let otpEmail = "", otpBusy = false;
+function loginMsg(t) { const m = document.getElementById("loginMsg"); if (m) m.textContent = t; }
+async function authCall(path, payload) {
+  const res = await fetch(SB_URL + "/auth/v1/" + path, { method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  let j = {}; try { j = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const m = String(j.msg || j.message || j.error_description || j.error || "");
+    if (res.status === 429 || /rate limit|too many|seconds/i.test(m)) throw new Error("Too many code requests. Wait a minute, then try again.");
+    if (/expired|invalid/i.test(m)) throw new Error("That code is wrong or expired. Use Send again for a new one.");
+    throw new Error(m || "Could not reach the sign-in service.");
+  }
+  return j;
+}
+async function startEmailOtp(raw) {
+  if (otpBusy) return;
+  otpBusy = true;
   try {
-    const lock = lockInfo();
-    if (lock.until && Date.now() < lock.until) { document.getElementById("loginMsg").textContent = "Too many tries. Wait 5 minutes, or upload this latest site."; return; }
-    try {
-      const loaded = await pullSheet();
-      const msg = document.getElementById("loginMsg");
-      if (msg) msg.textContent = loaded ? "Book loaded from database." : "Database is empty.";
-    } catch (e) {
-      const msg = document.getElementById("loginMsg");
-      if (msg) msg.textContent = e.message || "Could not load database";
-    }
-    await seedUsers();
-    const name = document.getElementById("loginUser").value.trim();
-    const pass = document.getElementById("loginPass").value;
-    const user = (state.users||[]).find(u => u.name.toLowerCase() === name.toLowerCase());
-    if (!user) { document.getElementById("loginMsg").textContent = "Wrong user name or password."; return; }
-    const salted = await hashPass(pass, user.salt);
-    const legacy = await legacyHash(pass);
-    const defaults = { admin:"admin123", entry:"entry123" };
-    const isDefault = !user.hash && defaults[user.name.toLowerCase()] === pass;
-    if (user.hash !== salted && user.hash !== legacy && !isDefault) {
-      const fails = (lock.count || 0) + 1;
-      setLock(fails >= 5 ? { count: 0, until: Date.now() + 5*60*1000 } : { count: fails });
-      document.getElementById("loginMsg").textContent = "Wrong user name or password.";
-      return;
-    }
-    if (user.hash !== salted) {
-      user.salt = user.salt || Math.random().toString(36).slice(2);
-      user.hash = await hashPass(pass, user.salt);
-      user.mustChange = isDefault;
-    }
-    setLock({ count: 0 });
-    const proof = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now());
-    user.session = proof;
-    persist();
-    sessionStorage.setItem("carne-user", user.name);
-    sessionStorage.setItem("carne-proof", proof);
-    touchSession();
-    activeUser = user;
-    document.getElementById("loginPass").value = "";
-    hideLogin();
-    if (user.mustChange) toast("Change the default password from Users.");
-    applyAccess();
-    fillForm();
-    paintHome();
-  } catch (err) { const m = document.getElementById("loginMsg"); if (m) m.textContent = err.message; else alert(err.message); }
+    const email = String(raw || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { loginMsg("Enter your registered email address."); return; }
+    const reg = await fetch(SB_URL + "/rest/v1/rpc/email_registered", { method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_email: email }) });
+    if (!reg.ok) throw new Error("Could not reach the sign-in service.");
+    if ((await reg.json()) !== true) { loginMsg("This email is not registered. Ask the Owner to add it under Users."); return; }
+    await authCall("otp", { email, create_user: true });
+    otpEmail = email;
+    document.getElementById("otpBox").classList.remove("hidden");
+    loginMsg("A code was sent to " + email + ". Enter it below. (Check spam if it does not arrive.)");
+    document.getElementById("loginOtp").focus();
+  } finally { otpBusy = false; }
+}
+async function loadProfile(email) {
+  const r = await sbFetch("/rest/v1/profiles?email=eq." + encodeURIComponent(email) + "&select=*");
+  if (!r.ok) throw new Error("Could not read your login details.");
+  const p = (await r.json())[0];
+  if (!p || !p.active) return null;
+  const role = ROLES[p.role] ? p.role : "entry";
+  const access = role === "admin" ? ALL_TABS.slice() : (Array.isArray(p.access) && p.access.length ? p.access : ROLES[role].access.slice());
+  return { email: p.email, name: p.name || p.email, role, access };
+}
+async function verifyEmailOtp() {
+  const code = document.getElementById("loginOtp").value.replace(/\s/g, "");
+  if (!otpEmail) { loginMsg("Type your email and press Send Code first."); return; }
+  if (!code) { loginMsg("Enter the code from your email."); return; }
+  const lock = lockInfo();
+  if (lock.until && Date.now() < lock.until) { loginMsg("Too many tries. Wait 5 minutes."); return; }
+  let res;
+  try { res = await authCall("verify", { type: "email", email: otpEmail, token: code }); }
+  catch (e) {
+    const fails = (lock.count || 0) + 1;
+    setLock(fails >= 5 ? { count: 0, until: Date.now() + 5 * 60 * 1000 } : { count: fails });
+    throw e;
+  }
+  if (!res.access_token || !res.user || String(res.user.email || "").toLowerCase() !== otpEmail) throw new Error("The code could not be verified.");
+  saveSbSession(sessionFromAuth(res, otpEmail));
+  const user = await loadProfile(otpEmail);
+  if (!user) { await window.doLogout("This email is not authorised. Ask the Owner to add or re-activate it."); return; }
+  await completeLogin(user);
+}
+async function completeLogin(user) {
+  setLock({ count: 0 });
+  activeUser = user;
+  try { sessionStorage.setItem("carne-profile", JSON.stringify(user)); } catch (e) {}
+  touchSession();
+  showLoad("Loading book...");
+  try { await pullSheet(true, true); }
+  catch (e) { hideLoad(); await window.doLogout("Signed in, but the book could not be loaded: " + e.message); return; }
+  hideLoad();
+  document.getElementById("loginPass").value = "";
+  const otp = document.getElementById("loginOtp"); if (otp) otp.value = "";
+  const box = document.getElementById("otpBox"); if (box) box.classList.add("hidden");
+  otpEmail = "";
+  hideLogin();
+  applyAccess();
+  reloadFormFromState(); fillForm();
+  paintHome();
+}
+async function doLogin() {
+  try { await startEmailOtp(document.getElementById("loginUser").value); }
+  catch (err) { loginMsg(err.message); }
   finally { hideLoad(); }
 }
 
@@ -787,7 +815,7 @@ function paintCompany() {
     reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.homeLogo = small; persist(); paintCompany(); paintHome(); applyBrandLogo(); pushSheet().then(() => toast("Home logo saved to database.")).catch(err => alert(err.message)); });
     reader.readAsDataURL(file);
   };
-  document.getElementById("coLogoClear").onclick = () => { state.company.homeLogo = ""; persist(); paintCompany(); paintHome(); applyBrandLogo(); pushSheet().catch(()=>{}); };
+  document.getElementById("coLogoClear").onclick = () => { state.company.homeLogo = ""; persist(); paintCompany(); paintHome(); applyBrandLogo(); pushSheet().catch(err => toast(err.message)); };
   document.getElementById("coInvLogoFile").onchange = e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -795,154 +823,400 @@ function paintCompany() {
     reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.invoiceLogo = small; persist(); paintCompany(); paintInvoice(); pushSheet().then(() => toast("Invoice logo saved to database.")).catch(err => alert(err.message)); });
     reader.readAsDataURL(file);
   };
-  document.getElementById("coInvLogoClear").onclick = () => { state.company.invoiceLogo = ""; state.company.logo = ""; persist(); paintCompany(); paintInvoice(); pushSheet().catch(()=>{}); };
+  document.getElementById("coInvLogoClear").onclick = () => { state.company.invoiceLogo = ""; state.company.logo = ""; persist(); paintCompany(); paintInvoice(); pushSheet().catch(err => toast(err.message)); };
 }
 
-function paintUsers() {
-  if (!currentUser() || currentUser().role !== "admin") return;
-  ensureUsers();
-  const rows = state.users.map((u,i) => {
-    const boxes = ACCESS.map(([k,label]) => `<label style="display:inline-flex;gap:4px;margin:3px 8px 3px 0;"><input data-user="${i}" data-access="${k}" type="checkbox" ${(u.access||[]).includes(k)?"checked":""} ${u.role==="admin"?"disabled":""} />${label}</label>`).join("");
-    return `<tr>
-      <td><input data-user="${i}" data-k="name" value="${esc(u.name)}" /></td>
-      <td><select data-user="${i}" data-k="role"><option value="admin" ${u.role==="admin"?"selected":""}>Admin</option><option value="entry" ${u.role==="entry"?"selected":""}>Entry</option></select></td>
-      <td><input data-user="${i}" data-k="pass" type="password" placeholder="New password" /></td>
-      <td>${u.pending?"<b>Reset requested</b><br>":""}${boxes}<br><button class="btn tiny" data-saveuser="${i}">Save</button> ${u.pending?`<button class="btn tiny" data-approve="${i}">Approve reset</button>`:""} <button class="btn tiny" data-deluser="${i}">Delete</button></td>
+async function apiError(res) { let t = ""; try { t = await res.text(); const j = JSON.parse(t); return j.message || t; } catch (e) { return t || ("Error " + res.status); } }
+async function paintUsers() {
+  const me = currentUser();
+  if (!me || me.role !== "admin") return;
+  const card = document.getElementById("usersCard");
+  card.innerHTML = '<h2>People <span class="hint">Owner only</span></h2><p class="note">Loading...</p>';
+  let list;
+  try { const r = await sbFetch("/rest/v1/profiles?select=*&order=created_at.asc"); if (!r.ok) throw new Error(await apiError(r)); list = await r.json(); }
+  catch (e) { card.innerHTML = '<h2>People</h2><p class="note">Could not load: ' + esc(e.message) + "</p>"; return; }
+  const roleOpts = sel => Object.keys(ROLES).map(k => `<option value="${k}" ${sel === k ? "selected" : ""}>${ROLES[k].label}</option>`).join("");
+  const rows = list.map(u => {
+    const acc = (Array.isArray(u.access) && u.access.length) ? u.access : (ROLES[u.role] || ROLES.entry).access;
+    const boxes = ACCESS.map(([k, label]) => `<label style="display:inline-flex;gap:4px;margin:3px 8px 3px 0;"><input data-access="${k}" type="checkbox" ${(u.role === "admin" || acc.includes(k)) ? "checked" : ""} ${u.role === "admin" ? "disabled" : ""} />${label}</label>`).join("");
+    return `<tr data-row="${esc(u.email)}">
+      <td><b>${esc(u.email)}</b><br><input data-k="name" value="${esc(u.name || "")}" placeholder="Name" style="margin-top:6px;" /></td>
+      <td><select data-k="role">${roleOpts(u.role)}</select><label style="display:block;margin-top:6px;font-size:12px;"><input data-k="active" type="checkbox" ${u.active ? "checked" : ""} /> Can sign in</label></td>
+      <td>${boxes}<br><button class="btn tiny" data-saveuser="${esc(u.email)}">Save</button> <button class="btn tiny" data-deluser="${esc(u.email)}">Delete</button></td>
     </tr>`;
   }).join("");
-  document.getElementById("usersCard").innerHTML = `<h2>Users <span class="hint">Admin only</span></h2>
-    <p class="note">Tick the pages each user may open. Live summary is separate. Admin always has complete access.</p>
-    <table><thead><tr><th>Name</th><th>Role</th><th>Password</th><th>Access</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="actions"><button class="btn tiny" id="addUser">+ Add login</button></div>`;
-  document.getElementById("addUser").onclick = () => { state.users.push({ name:"User", role:"entry", hash:"", access: ENTRY_TABS.slice() }); persist(); paintUsers(); };
-  document.getElementById("usersCard").querySelectorAll("[data-saveuser]").forEach(b => b.onclick = async () => {
-    const i = Number(b.dataset.saveuser);
-    const row = b.closest("tr");
-    state.users[i].name = row.querySelector("[data-k=name]").value.trim();
-    state.users[i].role = row.querySelector("[data-k=role]").value;
-    state.users[i].access = [...row.querySelectorAll("[data-access]:checked")].map(x => x.dataset.access);
-    const pass = row.querySelector("[data-k=pass]").value;
-    if (pass) { state.users[i].salt = Math.random().toString(36).slice(2); state.users[i].hash = await hashPass(pass, state.users[i].salt); state.users[i].mustChange = false; state.users[i].session = ""; }
-    persist();
-    pushSheet().then(() => toast("Login saved to database. Other systems will use it on next sign in.")).catch(err => alert(err.message));
-    paintUsers();
+  card.innerHTML = `<h2>People <span class="hint">Owner only</span></h2>
+    <p class="note">Each person signs in with their email and a one-time code. <b>Owner</b>: everything. <b>Manager</b>: all pages, can add, edit and delete. <b>Accountant</b>: money pages, add and edit, no delete. <b>Entry</b>: daily entry pages, today only. <b>Viewer</b>: look only. Changing the level resets the ticked pages to that level's default. These rules are enforced by the database, not only by this page.</p>
+    <table><thead><tr><th>Person</th><th>Level</th><th>Pages</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="sec">Add a person</div>
+    <div class="row" style="grid-template-columns:2fr 1.4fr 1fr;"><input id="newEmail" type="email" placeholder="Email" /><input id="newName" placeholder="Name" /><select id="newRole">${roleOpts("entry")}</select></div>
+    <div class="actions"><button class="btn primary" id="addUser" type="button">+ Add person</button></div>`;
+  card.querySelectorAll("select[data-k=role]").forEach(sel => sel.onchange = () => {
+    const row = sel.closest("tr"); const def = (ROLES[sel.value] || ROLES.entry).access;
+    row.querySelectorAll("[data-access]").forEach(c => { c.checked = sel.value === "admin" || def.includes(c.dataset.access); c.disabled = sel.value === "admin"; });
   });
-  document.getElementById("usersCard").querySelectorAll("[data-approve]").forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.approve);
-    if (!state.users[i].pending) return;
-    state.users[i].hash = state.users[i].pending;
-    delete state.users[i].pending;
-    persist(); toast("New password approved."); paintUsers();
+  card.querySelectorAll("[data-saveuser]").forEach(b => b.onclick = async () => {
+    const row = b.closest("tr"); const email = b.dataset.saveuser;
+    const role = row.querySelector("[data-k=role]").value;
+    const access = role === "admin" ? ALL_TABS.slice() : [...row.querySelectorAll("[data-access]:checked")].map(x => x.dataset.access);
+    const res = await sbFetch("/rest/v1/profiles?email=eq." + encodeURIComponent(email), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ name: row.querySelector("[data-k=name]").value.trim(), role, access, active: row.querySelector("[data-k=active]").checked }) });
+    if (!res.ok) return alert(await apiError(res));
+    toast("Saved. The change applies the next time that person signs in."); paintUsers();
   });
-  document.getElementById("usersCard").querySelectorAll("[data-deluser]").forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.deluser);
-    if (state.users.length < 2) return alert("Keep at least one login.");
-    state.users.splice(i,1); persist(); paintUsers();
+  card.querySelectorAll("[data-deluser]").forEach(b => b.onclick = async () => {
+    if (!confirm("Remove " + b.dataset.deluser + "? They will no longer be able to sign in.")) return;
+    const res = await sbFetch("/rest/v1/profiles?email=eq." + encodeURIComponent(b.dataset.deluser), { method: "DELETE", headers: { Prefer: "return=minimal" } });
+    if (!res.ok) return alert(await apiError(res));
+    toast("Removed."); paintUsers();
   });
+  document.getElementById("addUser").onclick = async () => {
+    const email = document.getElementById("newEmail").value.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return alert("Enter a valid email address.");
+    const role = document.getElementById("newRole").value;
+    const res = await sbFetch("/rest/v1/profiles", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ email, name: document.getElementById("newName").value.trim(), role, access: (ROLES[role] || ROLES.entry).access.slice(), active: true }) });
+    if (!res.ok) { const m = await apiError(res); return alert(/duplicate/i.test(m) ? "That email is already in the list." : m); }
+    toast("Added. They can now sign in with an email code."); paintUsers();
+  };
 }
 
-
-const CLOUD_KEY = "carne-cloud-v1";
-function cloudConfig() {
-  try { return JSON.parse(localStorage.getItem(CLOUD_KEY) || "{}"); } catch (e) { return {}; }
-}
-function saveCloudConfig(cfg) { localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg)); }
-async function cloudKey(password) {
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name:"PBKDF2", salt: new TextEncoder().encode("carne-trade-book"), iterations: 100000, hash:"SHA-256" }, base, { name:"AES-GCM", length:256 }, false, ["encrypt","decrypt"]);
-}
-async function cloudToken(code, password) {
-  const data = new TextEncoder().encode(code + "|" + password);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,"0")).join("");
-}
-function cloudUrl(token) {
-  const base = location.protocol === "file:" ? "" : location.origin;
-  return base + "/.netlify/functions/sync?token=" + encodeURIComponent(token);
-}
-async function encryptState(password) {
-  const key = await cloudKey(password);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const plain = new TextEncoder().encode(JSON.stringify({ state, updated: Date.now() }));
-  const buf = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, plain);
-  const toB64 = bytes => { let s = ""; const a = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes); for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode(...a.subarray(i, i + 0x8000)); return btoa(s); };
-  return { iv: toB64(iv), data: toB64(new Uint8Array(buf)), updated: Date.now() };
-}
-async function decryptState(password, pack) {
-  const key = await cloudKey(password);
-  const iv = Uint8Array.from(atob(pack.iv), c => c.charCodeAt(0));
-  const data = Uint8Array.from(atob(pack.data), c => c.charCodeAt(0));
-  const buf = await crypto.subtle.decrypt({ name:"AES-GCM", iv }, key, data);
-  return JSON.parse(new TextDecoder().decode(buf));
-}
 function setCloudStatus(text) { const el = document.getElementById("cloudStatus"); if (el) el.textContent = text; }
 function showLoad(text) { const box = document.getElementById("loader"); const label = document.getElementById("loaderText"); if (label) label.textContent = text || "Loading..."; if (box) box.classList.add("on"); }
 function hideLoad() { const box = document.getElementById("loader"); if (box) box.classList.remove("on"); }
-async function pushCloud() {
-  const cfg = cloudConfig();
-  if (!cfg.code || !cfg.password) return;
-  const token = await cloudToken(cfg.code, cfg.password);
-  const pack = await encryptState(cfg.password);
-  const res = await fetch(cloudUrl(token), { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(pack) });
-  if (!res.ok) throw new Error("Online save failed");
-  setCloudStatus("Saved online");
-}
-let cloudTimer = 0;
-function queueCloud() {
-  if (!sheetUrl()) return;
-  clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(() => pushSheet().then(() => toast("Saved to database.")).catch(err => { setCloudStatus(err.message); toast(err.message); }), 800);
-}
-async function pullCloud() {
-  const cfg = cloudConfig();
-  if (!cfg.code || !cfg.password) throw new Error("Enter shop code and password");
-  const token = await cloudToken(cfg.code, cfg.password);
-  const res = await fetch(cloudUrl(token));
-  if (!res.ok) throw new Error("Could not load online books");
-  const pack = await res.json();
-  if (!pack || !pack.data) { setCloudStatus("Connected. No online books yet."); return false; }
-  const got = await decryptState(cfg.password, pack);
-  if (got && got.state) {
-    state = got.state;
-    localStorage.setItem(KEY, JSON.stringify(state));
-    setCloudStatus("Loaded from online");
-    return true;
-  }
-  return false;
-}
 
-
+/* ---------- Database (Supabase tables, signed-in access only) ----------
+   - Everyone signs in with Supabase Auth (email code). Every request carries that person's token,
+     and the database itself decides what that person may read, add, change or delete.
+   - Each record is its own row (customers, invoices, vendors, cash entries, day books...), so two people
+     working on different records never overwrite each other.
+   - Nothing is saved until a successful load; a save only counts when the database confirms it;
+     if somebody changed the same record first, their change is merged and the save is retried. */
 const SB_URL = "https://eigcbksnkymwpluqpokm.supabase.co";
 const SB_KEY = "sb_publishable_ymcik2EcWMTz4nCFzRe6sw_45-zig0k";
 function sheetUrl() { return SB_URL; }
-function sbHeaders() {
-  if (!SB_KEY) throw new Error("Supabase anon key is not set yet.");
-  return { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY, "Content-Type": "application/json", Prefer: "return=representation" };
+
+/* --- session (token) handling --- */
+const SESS_KEY = "carne-sb-session";
+let sbSession = null;
+try { sbSession = JSON.parse(sessionStorage.getItem(SESS_KEY) || "null"); } catch (e) {}
+function saveSbSession(s) { sbSession = s; try { if (s) sessionStorage.setItem(SESS_KEY, JSON.stringify(s)); else sessionStorage.removeItem(SESS_KEY); } catch (e) {} }
+function sessionFromAuth(j, email) {
+  return { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (Number(j.expires_in) || 3600) * 1000, email: String((j.user && j.user.email) || email || "").toLowerCase() };
 }
-async function pushSheet() {
-  setCloudStatus("Saving...");
-  showLoad("Saving to database...");
-  try {
-    const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main", { method: "PATCH", headers: sbHeaders(), body: JSON.stringify({ data: state, updated_at: new Date().toISOString() }) });
-    if (!res.ok) { const errText = await res.text(); throw new Error("Database save failed. " + errText.slice(0, 180)); }
-    setCloudStatus("Saved to database");
-  } finally { hideLoad(); }
+async function refreshSbSession() {
+  if (!sbSession || !sbSession.refresh_token) throw new Error("Session ended. Sign in again.");
+  const res = await fetch(SB_URL + "/auth/v1/token?grant_type=refresh_token", { method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ refresh_token: sbSession.refresh_token }) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token) { saveSbSession(null); if (typeof sessionEnded === "function") sessionEnded(); throw new Error("Session ended. Sign in again."); }
+  saveSbSession(sessionFromAuth(j, sbSession.email));
 }
-async function pullSheet() {
+async function sbHeaders(extra) {
+  if (!sbSession) throw new Error("Please sign in.");
+  if (Date.now() > sbSession.expires_at - 60000) await refreshSbSession();
+  return Object.assign({ apikey: SB_KEY, Authorization: "Bearer " + sbSession.access_token, "Content-Type": "application/json" }, extra || {});
+}
+async function sbFetch(path, opt) {
+  opt = opt || {};
+  let res = await fetch(SB_URL + path, Object.assign({}, opt, { headers: await sbHeaders(opt.headers) }));
+  if (res.status === 401) { await refreshSbSession(); res = await fetch(SB_URL + path, Object.assign({}, opt, { headers: await sbHeaders(opt.headers) })); }
+  return res;
+}
+
+/* --- helpers: comparing and merging --- */
+function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+function canon(v) {
+  return JSON.stringify(v, (k, x) => (isObj(x) ? Object.keys(x).sort().reduce((o, kk) => { o[kk] = x[kk]; return o; }, {}) : x));
+}
+function same(a, b) { return canon(a) === canon(b); }
+function normalizeState(s) {
+  const d = seed();
+  const out = Object.assign({}, isObj(s) ? s : {});
+  out.company = Object.assign({}, companyDefault, isObj(out.company) ? out.company : {});
+  ["days", "daysB2C"].forEach(k => { if (!isObj(out[k])) out[k] = {}; });
+  ["vendors", "parties", "products", "recentDispatchNames"].forEach(k => { if (!Array.isArray(out[k])) out[k] = structuredClone(d[k]); });
+  ["vendorTxns", "taxInvoices", "mailNotes", "customerRates", "cashBook"].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  return out;
+}
+function blankState() { const s = seed(); s.days = {}; s.taxInvoices = []; s.vendorTxns = []; return normalizeState(s); }
+function itemKey(it) { return isObj(it) ? (it.id != null ? "i:" + it.id : (it.name != null ? "n:" + String(it.name).toLowerCase() : null)) : null; }
+function keyedList(arr) { const keys = arr.map(itemKey); return keys.every(k => k !== null) && new Set(keys).size === keys.length ? keys : null; }
+function mergeVal(b, l, r) {
+  if (same(l, r)) return l;
+  if (same(l, b)) return r;
+  if (same(r, b)) return l;
+  if (isObj(l) && isObj(r)) return mergeMap(isObj(b) ? b : {}, l, r);
+  if (Array.isArray(l) && Array.isArray(r) && keyedList(l) && keyedList(r)) return mergeList(Array.isArray(b) ? b : [], l, r);
+  return l;
+}
+function mergeMap(b, l, r) {
+  const out = {};
+  new Set(Object.keys(r).concat(Object.keys(l))).forEach(k => {
+    const inL = k in l, inR = k in r, inB = k in b;
+    if (inL && inR) out[k] = mergeVal(b[k], l[k], r[k]);
+    else if (inL) { if (!inB || !same(l[k], b[k])) out[k] = l[k]; }
+    else if (inR) { if (!inB || !same(r[k], b[k])) out[k] = r[k]; }
+  });
+  return out;
+}
+function mergeList(b, l, r) {
+  const bm = new Map(), lm = new Map(), rm = new Map();
+  b.forEach(x => { const k = itemKey(x); if (k !== null) bm.set(k, x); });
+  l.forEach(x => lm.set(itemKey(x), x));
+  r.forEach(x => rm.set(itemKey(x), x));
+  const out = [], seen = new Set();
+  const take = k => {
+    if (seen.has(k)) return; seen.add(k);
+    const inL = lm.has(k), inR = rm.has(k), inB = bm.has(k);
+    if (inL && inR) out.push(mergeVal(bm.get(k), lm.get(k), rm.get(k)));
+    else if (inL) { if (!inB || !same(lm.get(k), bm.get(k))) out.push(lm.get(k)); }
+    else if (inR) { if (!inB || !same(rm.get(k), bm.get(k))) out.push(rm.get(k)); }
+  };
+  Array.from(rm.keys()).forEach(take);
+  Array.from(lm.keys()).forEach(take);
+  return out;
+}
+function mergeState(base, loc, rem) {
+  const out = mergeMap(isObj(base) ? base : {}, loc, rem);
+  if (out.company && loc.company && rem.company) out.company.nextNo = Math.max(Number(loc.company.nextNo) || 0, Number(rem.company.nextNo) || 0);
+  return out;
+}
+
+/* --- which parts of the app state live in which table --- */
+const LOCAL_ONLY = new Set(["users", "invoiceDraft", "reportDate", "reportFrom", "reportTo", "reportChannel", "reportMode", "reportType", "rateParty", "editPayId", "editCashId", "editVendorId", "invoiceSearchValue", "invoiceSearchMode", "invDate", "custMode", "productParty", "productBook", "rateBook", "custBook", "invoiceFrom", "invoiceTo", "mailStatus", "draftSavedAt"]);
+const LISTS = { taxInvoices: "tax_invoices", parties: "parties", vendors: "vendors", vendorTxns: "vendor_txns", cashBook: "cash_book" };
+const MAPS = { days: ["day_books", "b2b:"], daysB2C: ["day_books", "b2c:"], carcassSplit: ["carcass_splits", ""] };
+const TABLES = ["settings", "parties", "vendors", "vendor_txns", "tax_invoices", "cash_book", "day_books", "carcass_splits"];
+function localOnlyPart(st) { const o = {}; Object.keys(st || {}).forEach(k => { if (LOCAL_ONLY.has(k)) o[k] = st[k]; }); return o; }
+function syncPart(st) { const o = {}; Object.keys(st || {}).forEach(k => { if (!LOCAL_ONLY.has(k)) o[k] = st[k]; }); return o; }
+function stateFromRows(rows) {
+  const out = {};
+  Object.keys(LISTS).forEach(k => { out[k] = (rows[LISTS[k]] || []).map(r => r.data); });
+  Object.keys(MAPS).forEach(k => {
+    const [t, pre] = MAPS[k]; out[k] = {};
+    (rows[t] || []).forEach(r => { if (!pre || String(r.id).startsWith(pre)) out[k][String(r.id).slice(pre.length)] = r.data; });
+  });
+  (rows.settings || []).forEach(r => { out[r.id] = r.data; });
+  return out;
+}
+function snapshot(st) {
+  const snap = {}; TABLES.forEach(t => { snap[t] = new Map(); });
+  Object.keys(LISTS).forEach(k => (st[k] || []).forEach(it => {
+    if (!isObj(it) || (k === "vendorTxns" && it.auto)) return;
+    if (it.id == null) it.id = uid();
+    snap[LISTS[k]].set(String(it.id), it);
+  }));
+  Object.keys(MAPS).forEach(k => { const [t, pre] = MAPS[k]; Object.keys(st[k] || {}).forEach(key => { if (st[k][key] != null) snap[t].set(pre + key, st[k][key]); }); });
+  Object.keys(st).forEach(k => { if (LOCAL_ONLY.has(k) || LISTS[k] || MAPS[k] || st[k] === undefined || st[k] === null) return; snap.settings.set(k, st[k]); });
+  return snap;
+}
+function putRow(st, t, id, data) {
+  if (t === "settings") { if (data === undefined) delete st[id]; else st[id] = structuredClone(data); return; }
+  const lk = Object.keys(LISTS).find(k => LISTS[k] === t);
+  if (lk) {
+    const arr = st[lk] = st[lk] || []; const i = arr.findIndex(x => x && String(x.id) === id);
+    if (data === undefined) { if (i >= 0) arr.splice(i, 1); } else if (i >= 0) arr[i] = structuredClone(data); else arr.push(structuredClone(data));
+    return;
+  }
+  const mk = Object.keys(MAPS).find(k => MAPS[k][0] === t && (MAPS[k][1] === "" || id.startsWith(MAPS[k][1])));
+  if (mk) { const key = id.slice(MAPS[mk][1].length); st[mk] = st[mk] || {}; if (data === undefined) delete st[mk][key]; else st[mk][key] = structuredClone(data); }
+}
+
+/* --- what the database last told us (base) --- */
+const BASE_KEY = "carne-trade-book-base";
+let dbReady = false, baseRows = null;
+try {
+  if (sessionStorage.getItem("carne-profile")) {
+    const b = JSON.parse(localStorage.getItem(BASE_KEY) || "null");
+    if (b) { TABLES.forEach(t => { b[t] = b[t] || {}; Object.keys(b[t]).forEach(id => { b[t][id].c = canon(b[t][id].data); }); }); baseRows = b; }
+  }
+} catch (e) { baseRows = null; }
+const denied = new Set();   // rows this login is not allowed to change (kept out of saves)
+function rowsToBase(rows) {
+  const b = {};
+  TABLES.forEach(t => { b[t] = {}; (rows[t] || []).forEach(r => { const data = structuredClone(r.data); b[t][String(r.id)] = { data, c: canon(data), stamp: r.updated_at || null }; }); });
+  return b;
+}
+function baseToRows(b) { const rows = {}; TABLES.forEach(t => { rows[t] = Object.keys(b[t] || {}).map(id => ({ id, data: b[t][id].data })); }); return rows; }
+function saveBase() { try { localStorage.setItem(BASE_KEY, JSON.stringify(baseRows)); } catch (e) {} }
+function setBase(t, id, data, stamp) { baseRows[t][id] = { data: structuredClone(data), c: canon(data), stamp: stamp || null }; }
+function diffRows(now, base) {
+  const up = [], del = [];
+  TABLES.forEach(t => {
+    const b = base[t] || {};
+    now[t].forEach((data, id) => { if (denied.has(t + "|" + id)) return; const br = b[id]; if (!br || canon(data) !== br.c) up.push({ t, id, data, stamp: br ? br.stamp : null }); });
+    Object.keys(b).forEach(id => { if (!now[t].has(id) && !denied.has(t + "|" + id)) del.push({ t, id, stamp: b[id].stamp }); });
+  });
+  return { up, del };
+}
+function isDirty() { if (!baseRows) return false; const d = diffRows(snapshot(state), baseRows); return d.up.length + d.del.length > 0; }
+function sameStamps(a, b) {
+  return TABLES.every(t => { const x = a[t] || {}, y = b[t] || {}; const kx = Object.keys(x); return kx.length === Object.keys(y).length && kx.every(id => y[id] && y[id].stamp === x[id].stamp); });
+}
+function revertToBase() {
+  if (!baseRows) return;
+  state = Object.assign(localOnlyPart(state), normalizeState(stateFromRows(baseToRows(baseRows))));
+}
+
+async function fetchAllRows() {
+  const rows = {};
+  await Promise.all(TABLES.map(async t => {
+    rows[t] = [];
+    for (let off = 0; ; off += 1000) {
+      const res = await sbFetch("/rest/v1/" + t + "?select=id,data,updated_at&order=seq.asc&limit=1000&offset=" + off);
+      if (!res.ok) throw new Error("Could not load the database. " + (await res.text()).slice(0, 140));
+      const part = await res.json();
+      rows[t] = rows[t].concat(part);
+      if (part.length < 1000) break;
+    }
+  }));
+  return rows;
+}
+function warnDuplicateInvoices() {
+  const seen = new Set(), dup = new Set();
+  (state.taxInvoices || []).forEach(i => { const k = String(i.number); if (seen.has(k)) dup.add(k); seen.add(k); });
+  if (dup.size) toast("Two invoices share a number: " + Array.from(dup).join(", ") + ". Check Invoices.");
+}
+
+/* Load everything. force=true always reports "loaded"; otherwise true only when something changed. */
+async function pullSheet(force, silent) {
   setCloudStatus("Loading...");
-  showLoad("Loading book...");
+  if (force && !silent) showLoad("Loading book...");
   try {
-    const res = await fetch(SB_URL + "/rest/v1/books?id=eq.main&select=data", { headers: sbHeaders() });
-    if (!res.ok) throw new Error("Could not load the database.");
-    const rows = await res.json();
-    const data = rows && rows[0] && rows[0].data;
-    if (!data || !Object.keys(data).length) { setCloudStatus("Connected. Database is empty."); return false; }
-    state = data;
-    localStorage.setItem(KEY, JSON.stringify(state));
-    setCloudStatus("Loaded from database");
+    const rows = await fetchAllRows();
+    const remoteBase = rowsToBase(rows);
+    const total = TABLES.reduce((a, t) => a + rows[t].length, 0);
+    dbReady = true;
+    if (!total) {
+      baseRows = remoteBase; saveBase();
+      state = Object.assign(localOnlyPart(state), blankState());
+      setCloudStatus("Connected. Database is empty.");
+      return false;
+    }
+    if (!force && baseRows && sameStamps(remoteBase, baseRows)) { setCloudStatus(isDirty() ? "Unsaved changes" : "Saved to database"); return false; }
+    const remoteState = normalizeState(stateFromRows(rows));
+    const localDiffers = baseRows ? isDirty() : canon(syncPart(state)) !== canon(syncPart(remoteState));
+    let merged = false;
+    if (localDiffers && baseRows) {
+      merged = true;
+      const m = mergeState(stateFromRows(baseToRows(baseRows)), syncPart(state), syncPart(remoteState));
+      state = Object.assign(localOnlyPart(state), normalizeState(m));
+    } else {
+      if (localDiffers) { try { localStorage.setItem("carne-backup-" + Date.now(), JSON.stringify(state)); } catch (e) {} }
+      state = Object.assign(localOnlyPart(state), remoteState);
+    }
+    denied.forEach(key => { const i = key.indexOf("|"); const t = key.slice(0, i), id = key.slice(i + 1); const r = remoteBase[t] && remoteBase[t][id]; putRow(state, t, id, r ? r.data : undefined); });
+    denied.clear();
+    baseRows = remoteBase; saveBase();
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    try { syncVendorPurchases(); } catch (e) {}
+    setCloudStatus(merged ? "Merged with changes from other users" : "Loaded from database");
+    if (merged) { warnDuplicateInvoices(); queueCloud(); }
     return true;
-  } finally { hideLoad(); }
+  } finally { if (force && !silent) hideLoad(); }
 }
+
+const _chunk = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+const _enc = s => encodeURIComponent(s);
+const _inList = ids => "(" + ids.map(i => '"' + encodeURIComponent(String(i).replace(/"/g, '\\"')) + '"').join(",") + ")";
+async function failText(res) { let t = ""; try { t = await res.text(); } catch (e) {} return t; }
+function isDeniedRes(res, text) { return res.status === 403 || /row-level security|42501|permission denied/i.test(text); }
+async function rowStamp(t, id) {
+  const res = await sbFetch("/rest/v1/" + t + "?id=eq." + _enc(id) + "&select=updated_at");
+  if (!res.ok) return undefined;
+  const r = await res.json();
+  return r.length ? r[0].updated_at : null;      // null = row no longer exists
+}
+
+let pushChain = null;
+function pushSheet(opts) {
+  if (!dbReady || !baseRows) return Promise.reject(new Error("Not saved yet. Press Load data (or sign in) first, so the database is not overwritten."));
+  pushChain = (pushChain || Promise.resolve()).catch(() => {}).then(() => doPush(opts || {}));
+  return pushChain;
+}
+async function doPush(opts) {
+  if (!perm("write")) return true;
+  if (!opts.silent) showLoad("Saving to database...");
+  const errs = [];
+  try {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { up, del } = diffRows(snapshot(state), baseRows);
+      if (!up.length && !del.length) break;
+      setCloudStatus("Saving...");
+      let conflict = false;
+      // one bad record must never block the others: collect its error and carry on
+      const guard = async fn => { try { await fn(); } catch (e) { errs.push(e); } };
+      const post = async (t, part, merge) => {
+        const res = await sbFetch("/rest/v1/" + t + "?on_conflict=id&select=id,updated_at", { method: "POST", headers: { Prefer: (merge ? "resolution=merge-duplicates" : "resolution=ignore-duplicates") + ",return=representation" }, body: JSON.stringify(part.map(x => ({ id: x.id, data: x.data }))) });
+        if (!res.ok) { const tx = await failText(res); if (isDeniedRes(res, tx)) { part.forEach(x => denied.add(t + "|" + x.id)); return; } throw saveError(t, tx); }
+        const got = new Map((await res.json()).map(r => [r.id, r.updated_at]));
+        part.forEach(x => { if (got.has(x.id)) setBase(t, x.id, x.data, got.get(x.id)); else if (merge) denied.add(t + "|" + x.id); else conflict = true; });
+      };
+      const postSafe = async (t, part, merge) => {
+        try { await post(t, part, merge); }
+        catch (e) { if (part.length > 1) { for (const x of part) await guard(() => post(t, [x], merge)); } else errs.push(e); }
+      };
+      for (const t of TABLES) {
+        const ups = up.filter(x => x.t === t), dels = del.filter(x => x.t === t);
+        if (!ups.length && !dels.length) continue;
+        const fresh = ups.filter(x => x.stamp == null), old = ups.filter(x => x.stamp != null);
+        for (const part of _chunk(fresh, 200)) await postSafe(t, part, false);
+        if (old.length > 40) {   // large batch (e.g. an import): last write wins
+          for (const part of _chunk(old, 200)) await postSafe(t, part, true);
+        } else {
+          for (const x of old) await guard(async () => {
+            const res = await sbFetch("/rest/v1/" + t + "?id=eq." + _enc(x.id) + "&updated_at=eq." + _enc(x.stamp) + "&select=updated_at", { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ data: x.data }) });
+            if (!res.ok) { const tx = await failText(res); if (isDeniedRes(res, tx)) { denied.add(t + "|" + x.id); return; } throw saveError(t, tx); }
+            const got = await res.json();
+            if (got.length) { setBase(t, x.id, x.data, got[0].updated_at); return; }
+            const now = await rowStamp(t, x.id);               // 0 rows: changed by someone else, deleted, or not allowed
+            if (now === x.stamp) denied.add(t + "|" + x.id); else conflict = true;
+          });
+        }
+        for (const part of _chunk(dels, 100)) await guard(async () => {
+          const res = await sbFetch("/rest/v1/" + t + "?id=in." + _inList(part.map(x => x.id)) + "&select=id", { method: "DELETE", headers: { Prefer: "return=representation" } });
+          if (!res.ok) { const tx = await failText(res); if (isDeniedRes(res, tx)) { part.forEach(x => denied.add(t + "|" + x.id)); return; } throw saveError(t, tx); }
+          const gone = new Set((await res.json()).map(r => r.id));
+          for (const x of part) {
+            if (gone.has(x.id)) { delete baseRows[t][x.id]; continue; }
+            const now = await rowStamp(t, x.id);
+            if (now === null) delete baseRows[t][x.id]; else denied.add(t + "|" + x.id);   // still there: delete not allowed
+          }
+        });
+      }
+      saveBase();
+      if (errs.length) break;
+      if (conflict) { setCloudStatus("Merging other changes..."); await pullSheet(true, true); }
+    }
+    if (errs.length) { setCloudStatus(errs[0].message); throw errs[0]; }
+    setCloudStatus(isDirty() ? "Unsaved changes" : "Saved to database");
+    return true;
+  } finally { if (!opts.silent) hideLoad(); }
+}
+function saveError(t, text) {
+  if (/tax_invoices_number_uniq|duplicate key/i.test(text) && t === "tax_invoices") return new Error("That invoice number is already used by another invoice. Change the number and save again.");
+  return new Error("Database save failed. " + text.slice(0, 180));
+}
+
+let cloudTimer = 0;
+function queueCloud() {
+  if (!dbReady || !baseRows) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(() => { if (!perm("write")) return; pushSheet({ silent: true }).then(() => { if (!isDirty()) toast("Saved to database."); }).catch(err => { setCloudStatus(err.message); toast(err.message); }); }, 800);
+}
+function reloadFormFromState() {
+  try { const d = form.date, c = form.channel || "b2b"; form = dayFor(d, c); form.date = d; form.channel = c; } catch (e) {}
+}
+/* periodic / on-focus refresh: never touches the form being typed in */
+function backgroundPull() {
+  if (!currentUser() || !dbReady) return Promise.resolve();
+  return pullSheet(false, true).then(changed => { if (changed) paintHome(); }).catch(err => setCloudStatus(err.message));
+}
+window.addEventListener("beforeunload", e => { if (dbReady && perm("write") && isDirty()) { e.preventDefault(); e.returnValue = ""; } });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") { if (dbReady && perm("write") && isDirty()) pushSheet({ silent: true }).catch(() => {}); }
+  else backgroundPull();
+});
+setInterval(backgroundPull, 60000);
+
 function toast(msg) {
   let el = document.getElementById("toast");
   if (!el) { el = document.createElement("div"); el.id = "toast"; el.className = "toast"; document.body.appendChild(el); }
@@ -3609,7 +3883,7 @@ function paintInvoice() {
     reader.onload = () => shrinkLogo(reader.result).then(small => { state.company.invoiceLogo = small; persist(); paintInvoice(); pushSheet().then(() => toast("Invoice logo saved.")).catch(err => alert(err.message)); });
     reader.readAsDataURL(file);
   };
-  document.getElementById("removeLogo").onclick = () => { state.company.invoiceLogo = ""; state.company.logo = ""; persist(); paintInvoice(); pushSheet().catch(()=>{}); };
+  document.getElementById("removeLogo").onclick = () => { state.company.invoiceLogo = ""; state.company.logo = ""; persist(); paintInvoice(); pushSheet().catch(err => toast(err.message)); };
   document.getElementById("invUpload").onchange = e => { const f = e.target.files && e.target.files[0]; if (f) importInvoiceFile(f); };
   document.getElementById("invTemplate").onclick = downloadInvoiceTemplate;
   document.getElementById("invPhoto").onchange = e => {
@@ -3871,7 +4145,7 @@ function paintHistory() {
     <div class="actions"><button class="btn ghost" id="exportJson">Export backup</button><button class="btn ghost" id="importJson">Import backup</button><input id="importFile" type="file" accept="application/json" class="hidden" /></div>`;
   document.getElementById("exportJson").onclick = () => { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:"application/json"})); a.download="carne-trade-book.json"; a.click(); };
   document.getElementById("importJson").onclick = () => document.getElementById("importFile").click();
-  document.getElementById("importFile").onchange = e => { const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try { state=Object.assign(seed(), JSON.parse(rd.result)); persist(); pushSheet().then(() => toast("Imported and saved to database. Other systems will see it after Load data or next login.")).catch(err => alert(err.message)); paintHistory(); } catch(err){ alert("Could not read that file"); } }; rd.readAsText(f); };
+  document.getElementById("importFile").onchange = e => { const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try { if (!confirm("Importing replaces the current book with the file. Continue?")) return; state=normalizeState(Object.assign(seed(), JSON.parse(rd.result))); persist(); pushSheet().then(() => toast("Imported and saved to database. Other systems will see it after Load data or next login.")).catch(err => alert(err.message)); paintHistory(); } catch(err){ alert("Could not read that file"); } }; rd.readAsText(f); };
 }
 
 function customerKey(name) {
@@ -4140,91 +4414,42 @@ function refreshDispatchFromInvoices(date) {
   paint();
 }));
 document.getElementById("date").addEventListener("change", () => loadDay(document.getElementById("date").value));
-window.startLogin = function(e) { if (e) e.preventDefault(); const m = document.getElementById("loginMsg"); if (m) m.textContent = "Checking..."; doLogin(); };
-document.getElementById("loginBtn").addEventListener("click", window.startLogin);
-document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") startLogin(e); });
-document.getElementById("loginUser").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); document.getElementById("loginPass").focus(); } });
-document.getElementById("forgotBtn").onclick = () => document.getElementById("forgotBox").classList.toggle("hidden");
-document.getElementById("forgotSend").onclick = async () => {
-  await seedUsers();
-  const name = document.getElementById("forgotUser").value.trim();
-  const pass = document.getElementById("forgotPass").value;
-  const user = (state.users||[]).find(u => u.name.toLowerCase() === name.toLowerCase());
-  if (!name || !pass) { document.getElementById("loginMsg").textContent = "Enter the user name and a new password."; return; }
-  if (user) { user.pending = await hashPass(pass, user.salt || "book"); persist(); }
-  document.getElementById("loginMsg").textContent = "Reset requested. Admin must approve it on the Users page.";
-  document.getElementById("forgotPass").value = "";
-};
+window.startLogin = function(e) { if (e) e.preventDefault(); loginMsg("Sending code..."); doLogin(); };
+function runVerify() { showLoad("Verifying..."); verifyEmailOtp().catch(err => { loginMsg(err.message); }).finally(hideLoad); }
+document.getElementById("otpVerify").onclick = runVerify;
+document.getElementById("loginOtp").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); runVerify(); } });
+document.getElementById("otpResend").onclick = () => { if (!otpEmail) return; showLoad("Sending code..."); startEmailOtp(otpEmail).catch(err => loginMsg(err.message)).finally(hideLoad); };
+document.getElementById("loginUser").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); startLogin(e); } });
 window.onerror = function (msg) {
   const b = document.getElementById("errBanner");
   if (b) { b.style.display = "block"; b.textContent = msg; }
 };
-window.doLogout = function () {
-  try { const u = currentUser(); if (u) u.session = ""; persist(); } catch (e) {}
-  activeUser = null;
-  sessionStorage.removeItem("carne-user");
-  sessionStorage.removeItem("carne-proof");
-  sessionStorage.removeItem("carne-seen");
+window.doLogout = async function (note) {
+  try { if (dbReady && sbSession && perm("write") && isDirty()) await Promise.race([pushSheet({ silent: true }), new Promise(r => setTimeout(r, 4000))]); } catch (e) {}
+  try { if (sbSession) fetch(SB_URL + "/auth/v1/logout", { method: "POST", headers: { apikey: SB_KEY, Authorization: "Bearer " + sbSession.access_token } }).catch(() => {}); } catch (e) {}
+  saveSbSession(null); activeUser = null; dbReady = false; baseRows = null; denied.clear(); otpEmail = "";
+  ["carne-profile", "carne-seen"].forEach(k => sessionStorage.removeItem(k));
+  try { localStorage.removeItem(KEY); localStorage.removeItem(BASE_KEY); } catch (e) {}
+  state = blankState(); draft = blankInvoice(); form = blank(); form.date = today(); form.channel = "b2b";
   showLogin();
   const header = document.querySelector("header.app");
   if (header) header.style.display = "none";
   const who = document.getElementById("who");
   if (who) who.textContent = "";
-  const msg = document.getElementById("loginMsg");
-  if (msg) msg.textContent = "Logged out.";
+  const box = document.getElementById("otpBox"); if (box) box.classList.add("hidden");
+  loginMsg(typeof note === "string" ? note : "Logged out.");
+  showAsk(false);
 };
-document.getElementById("logout").onclick = window.doLogout;
+document.getElementById("logout").onclick = () => window.doLogout();
 ["click","keydown","input"].forEach(ev => document.addEventListener(ev, () => { if (currentUser()) touchSession(); }));
-setInterval(() => { if (sessionStorage.getItem("carne-user") && !currentUser()) applyAccess(); }, 60000);
-async function connectToServer() {
-  const msg = document.getElementById("loginMsg");
-  if (msg) msg.textContent = "Connecting...";
-  saveCloudConfig({ code: "carne", password: "carne" });
-  try {
-    const loaded = await pullCloud();
-    if (msg) msg.textContent = loaded ? "Connected. User list loaded." : "Connected. No books online yet.";
-    if (document.getElementById("cloudCode")) document.getElementById("cloudCode").value = "carne";
-    paintHome();
-  } catch (err) {
-    if (msg) msg.textContent = "Could not connect. Open this site on Netlify, then try again.";
-  }
-}
-const connectBtn = document.getElementById("connectServer");
-if (connectBtn) connectBtn.onclick = connectToServer;
-seedUsers().then(applyAccess);
-async function saveAndLoad() {
-  setCloudStatus("Saving...");
-  saveCloudConfig({ code: "carne", password: "carne" });
-  try {
-    readForm();
-    if (form.date) { form.channel = form.channel || "b2b"; dayStore()[form.date] = structuredClone(form); }
-    persist();
-    await pushCloud();
-    const loaded = await pullCloud();
-    if (loaded && form.date) {
-      const store = (form.channel === "b2c" ? state.daysB2C : state.days) || {};
-      if (store[form.date]) form = structuredClone(store[form.date]);
-      form.channel = form.channel || "b2b";
-      fillForm();
-    }
-    setCloudStatus("Saved and loaded");
-    toast("Saved and loaded.");
-  } catch (err) {
-    setCloudStatus(err.message || "Could not connect");
-    alert("Could not connect. Open this site on Netlify, then try again.");
-  }
-}
-const loginLoad = document.getElementById("loginLoad");
-if (loginLoad) loginLoad.onclick = () => pullSheet().then(loaded => { const msg = document.getElementById("loginMsg"); if (msg) msg.textContent = loaded ? "Book loaded. Sign in with the saved password." : "Database is empty."; }).catch(err => { const msg = document.getElementById("loginMsg"); if (msg) msg.textContent = err.message; });
+setInterval(() => { if (sessionStorage.getItem("carne-profile") && !currentUser()) window.doLogout("Signed out after 30 minutes of inactivity."); }, 30000);
+setTimeout(() => {   // after the whole script has loaded
+  applyAccess();
+  if (currentUser()) pullSheet(true, true).then(() => { reloadFormFromState(); fillForm(); paintHome(); }).catch(err => { setCloudStatus(err.message); });
+}, 0);
 const sheetLoadBtn = document.getElementById("sheetLoad");
-if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); toast("Loaded from database."); } else toast("Database is empty."); }).catch(err => { setCloudStatus(err.message); alert(err.message); });
+if (sheetLoadBtn) sheetLoadBtn.onclick = () => pullSheet(true).then(loaded => { if (loaded) { reloadFormFromState(); fillForm(); paintHome(); toast("Loaded from database."); } else toast("Database is empty."); }).catch(err => { setCloudStatus(err.message); alert(err.message); });
 setCloudStatus("Ready");
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && currentUser()) pullSheet().then(loaded => { if (loaded) { fillForm(); paintHome(); } }).catch(() => {});
-});
-setInterval(() => {
-  if (currentUser()) pullSheet().then(loaded => { if (loaded) fillForm(); }).catch(() => {});
-}, 60000);
 document.getElementById("addVendorToday").onclick = () => {
   const name = prompt("Vendor name");
   if (!name || !name.trim()) return;
@@ -4337,6 +4562,60 @@ document.getElementById("askPanel").classList.add("hidden");
 showAsk(!!currentUser());
 askSay("Ask me to open a page, today's profit, a customer rate, or invoices.");
 document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => { if (window.innerWidth < 901) document.getElementById("mainNav").classList.remove("open"); }));
+
+/* ---------- Permissions ---------- */
+function perm(k) { const u = currentUser(); if (!u) return false; return !!(ROLES[u.role] || ROLES.entry).perms[k]; }
+function revertReadOnly() {
+  toast("This login is view-only. Nothing was saved.");
+  try { revertToBase(); } catch (e) {}
+}
+const PERM_SETTINGS_ID = /^(saveCompany|sheetSave|importJson|exportJson|loadSample|coLogoClear|coInvLogoClear|coLogoFile|coInvLogoFile|importFile|addUser|copySheetUrl)$/;
+const PERM_DELETE_ID = /^(delete\w*|del[A-Z]\w*|removeSign|removeLogo|clear(Cash|Day|Cust)|discardDraft)$/;
+const PERM_READ_ID = /^(menuBtn|logout|ask\w*|rep(Pdf|Excel|Download)|cust(Pdf|Excel|Download)|printInv|\w*Template|modeDay|modePeriod|hideGuide|sheetLoad)$/;
+function classify(el) {
+  if (el.closest("#loginForm,#askPanel")) return "read";
+  const id = el.id || "", ds = Object.keys(el.dataset || {});
+  const txt = (el.textContent || "").trim();
+  if (PERM_SETTINGS_ID.test(id) || ds.some(k => /^(saveuser|deluser|approve)$/.test(k)) || el.closest("#companyCard,#usersCard")) return "settings";
+  if (PERM_DELETE_ID.test(id) || ds.some(k => /^del/.test(k)) || /^(Delete|Remove)\b/.test(txt)) return "delete";
+  if (PERM_READ_ID.test(id) || ds.some(k => /^(tab|open|openinv|pick|ch)$/.test(k))) return "read";
+  return "write";
+}
+function denyReason(kind, el) {
+  if (!currentUser() || kind === "read") return "";
+  if (kind === "settings") return perm("settings") ? "" : "Only the Owner can do this.";
+  if (kind === "delete") return perm("del") ? "" : "Your login cannot delete. Ask the Owner or a Manager.";
+  if (!perm("write")) return "This login is view-only.";
+  const u = currentUser();
+  if (u.role === "entry" && el && el.id === "saveDay" && form && form.date && form.date !== today()) return "Entry logins can save only today's date.";
+  return "";
+}
+document.addEventListener("click", e => {
+  const el = e.target && e.target.closest ? e.target.closest("button, input[type=file]") : null;
+  if (!el) return;
+  const why = denyReason(classify(el), el);
+  if (why) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); toast(why); }
+}, true);
+function applyPerms() {
+  const u = currentUser();
+  document.querySelectorAll("button, input[type=file]").forEach(el => {
+    if (!u) return;
+    const kind = classify(el);
+    const why = kind === "write" ? (perm("write") ? "" : "x") : denyReason(kind, el);
+    if (kind === "delete" || kind === "settings") {
+      if (why) { el.style.display = "none"; el.dataset.permhide = "1"; }
+      else if (el.dataset.permhide) { el.style.display = ""; delete el.dataset.permhide; }
+    } else if (kind === "write") {
+      if (why) { el.disabled = true; el.dataset.permdis = "1"; el.title = "View-only login"; }
+      else if (el.dataset.permdis) { el.disabled = false; delete el.dataset.permdis; el.title = ""; }
+    }
+  });
+}
+(function () {
+  let queued = false;
+  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; applyPerms(); }); }).observe(document.body, { childList: true, subtree: true });
+})();
+booting = false;
 </script>
 </body>
 </html>

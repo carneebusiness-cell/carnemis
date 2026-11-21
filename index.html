@@ -4056,41 +4056,181 @@ function paintInvoice() {
 }
 
 function pdfEscape(s) { return String(s||"").replace(/₹/g,"Rs ").replace(/[–—]/g,"-").replace(/[^\x20-\x7E]/g,"").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)"); }
-function invoicePdf(inv) {
-  const party = partyOf(inv.partyId);
-  const rows = [];
-  rows.push([16, state.company.name || "CARNE"]);
-  rows.push([12, "TAX INVOICE"]);
-  rows.push([11, "Invoice no: " + (inv.number||"") + "    Date: " + (inv.date||"")]);
-  rows.push([11, "Bill to: " + (party.name||"")]);
-  rows.push([11, "Ship to: " + (inv.ship||"—")]);
-  rows.push([11, ""]);
-  (inv.items||[]).forEach((it,i) => {
-    const qty = inv.channel==="b2c" ? num(it.packets)+" pkt x "+num(it.packetG)+" g @ "+money(packetAmount(1, it.packetG, it.rate)) : num(it.qty)+" "+(it.unit||"");
-    rows.push([11, (i+1)+". "+(it.name||"Item")+"   "+qty+"   "+money(itemAmount(it))]);
+async function invoicePdf(inv) {
+  const W = 595, H = 842, M = 40, BRAND = "#8b1e3f";
+  const party = partyOf(inv.partyId), c = state.company || {}, b2c = inv.channel === "b2c";
+  const total = invTotal(inv), due = total - invPaid(inv);
+  const clean = s => String(s == null ? "" : s).replace(/₹/g, "Rs. ").replace(/[–—]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E]/g, "");
+  const pdfEsc = s => s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  const mny = v => clean(money(v));
+  let cx = null; try { cx = document.createElement("canvas").getContext("2d"); } catch (e) {}
+  const measure = (t, size, bold) => { if (cx) { cx.font = (bold ? "bold " : "") + size + "px Arial, Helvetica, sans-serif"; return cx.measureText(t).width; } return t.length * size * (bold ? 0.56 : 0.5); };
+  const wrap = (text, size, bold, maxW) => {
+    const out = [];
+    String(text == null ? "" : text).split(/\r?\n/).map(clean).forEach(par => {
+      let line = "";
+      par.split(/\s+/).filter(Boolean).forEach(word => {
+        while (measure(word, size, bold) > maxW && word.length > 1) {
+          let k = word.length - 1; while (k > 1 && measure(word.slice(0, k), size, bold) > maxW) k--;
+          if (line) { out.push(line); line = ""; }
+          out.push(word.slice(0, k)); word = word.slice(k);
+        }
+        const tryLine = line ? line + " " + word : word;
+        if (line && measure(tryLine, size, bold) > maxW) { out.push(line); line = word; } else line = tryLine;
+      });
+      out.push(line);
+    });
+    return out;
+  };
+  const rgb = hex => { const v = parseInt(hex.slice(1), 16); return [(v >> 16 & 255) / 255, (v >> 8 & 255) / 255, (v & 255) / 255].map(x => x.toFixed(3)).join(" "); };
+  const pages = [[]]; let ops = pages[0];
+  const newPage = () => { ops = []; pages.push(ops); };
+  const T = (x, y, str, o) => {
+    o = o || {}; const size = o.size || 10, s = clean(str); if (!s) return;
+    const w = measure(s, size, o.bold); const px = o.align === "r" ? x - w : o.align === "c" ? x - w / 2 : x;
+    ops.push("BT /F" + (o.bold ? 2 : 1) + " " + size + " Tf " + rgb(o.color || "#111111") + " rg " + px.toFixed(2) + " " + (H - y).toFixed(2) + " Td (" + pdfEsc(s) + ") Tj ET");
+  };
+  const R = (x, y, w, h, o) => {
+    o = o || {}; let s = "";
+    if (o.fill) s += rgb(o.fill) + " rg ";
+    if (o.stroke) s += rgb(o.stroke) + " RG " + (o.lw || 0.7) + " w ";
+    s += x.toFixed(2) + " " + (H - y - h).toFixed(2) + " " + w.toFixed(2) + " " + h.toFixed(2) + " re " + (o.fill && o.stroke ? "B" : o.fill ? "f" : "S");
+    ops.push(s);
+  };
+  const images = [];
+  const loadJpeg = src => new Promise(res => {
+    if (!src || !cx) return res(null);
+    const im = new Image(); const t = setTimeout(() => res(null), 3000);
+    im.onload = () => { clearTimeout(t); try {
+      const sc = Math.min(1, 700 / Math.max(im.width, im.height)), w = Math.max(1, Math.round(im.width * sc)), h = Math.max(1, Math.round(im.height * sc));
+      const k = document.createElement("canvas"); k.width = w; k.height = h; const g = k.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); g.drawImage(im, 0, 0, w, h);
+      const bin = atob(k.toDataURL("image/jpeg", 0.92).split(",")[1]); const b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+      res({ bytes: b, pw: w, ph: h });
+    } catch (e) { res(null); } };
+    im.onerror = () => { clearTimeout(t); res(null); }; im.src = src;
   });
-  rows.push([11, ""]);
-  rows.push([12, "Total: " + money(invTotal(inv))]);
-  rows.push([12, "Balance due: " + money(invTotal(inv)-invPaid(inv))]);
-  if (inv.notes) rows.push([11, "Notes: " + inv.notes]);
-  rows.push([11, "Authorized signatory: " + (inv.signatory||state.company.signatory||"")]);
-  let y = 790, stream = "";
-  rows.forEach(r => { stream += "BT /F1 "+r[0]+" Tf 50 "+y+" Td ("+pdfEscape(r[1])+") Tj ET\n"; y -= r[0]+6; });
-  const objects = [
-    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
-    "4 0 obj << /Length "+stream.length+" >> stream\n"+stream+"endstream endobj",
-    "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj"
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offs = [0];
-  objects.forEach(o => { offs.push(pdf.length); pdf += o + "\n"; });
-  const xref = pdf.length;
-  pdf += "xref\n0 "+(objects.length+1)+"\n0000000000 65535 f \n";
-  offs.slice(1).forEach(off => pdf += String(off).padStart(10,"0")+" 00000 n \n");
-  pdf += "trailer << /Size "+(objects.length+1)+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF";
-  return new TextEncoder().encode(pdf);
+  const IMG = (img, x, y, bw, bh, alignRight) => {
+    const sc = Math.min(bw / img.pw, bh / img.ph), w = img.pw * sc, h = img.ph * sc;
+    let idx = images.indexOf(img); if (idx < 0) { images.push(img); idx = images.length - 1; }
+    const px = alignRight ? x + bw - w : x;
+    ops.push("q " + w.toFixed(2) + " 0 0 " + h.toFixed(2) + " " + px.toFixed(2) + " " + (H - y - h).toFixed(2) + " cm /Im" + idx + " Do Q");
+    return { w, h };
+  };
+  const logo = await loadJpeg(c.invoiceLogo || c.logo), sigImg = await loadJpeg(c.signature);
+  const GREY = "#555555", LINE = "#d9d9d9";
+
+  /* header */
+  let y = M, logoW = 56;
+  if (logo) logoW = IMG(logo, M, y, 110, 56).w; else { R(M, y, 56, 56, { fill: "#e23b2f" }); T(M + 28, y + 40, "C", { size: 30, bold: true, color: "#ffffff", align: "c" }); }
+  const tx = M + logoW + 12; let ty = y + 12;
+  T(tx, ty, c.name || "CARNE", { size: 14, bold: true }); ty += 14;
+  wrap(c.lines || "", 9, false, 290).forEach(l => { if (l) { T(tx, ty, l, { size: 9, color: GREY }); ty += 11; } });
+  if (c.gstin) { T(tx, ty, "GSTIN " + c.gstin, { size: 9, color: GREY }); ty += 11; }
+  if (c.web) { T(tx, ty, c.web, { size: 9, color: GREY }); ty += 11; }
+  T(W - M, y + 34, "TAX INVOICE", { size: 22, bold: true, color: BRAND, align: "r" });
+  y = Math.max(y + 60, ty) + 4;
+  R(M, y, W - 2 * M, 2.5, { fill: BRAND }); y += 12;
+
+  /* details */
+  const colW = (W - 2 * M) / 2, pad = 6, lh = 12;
+  const cell = (x, yy, w, h, lines) => { R(x, yy, w, h, { stroke: LINE }); let ly = yy + pad + 8; lines.forEach(l => { T(x + pad, ly, l.t, { size: 9.5, bold: l.b }); ly += lh; }); };
+  cell(M, y, colW, 34, [{ t: "Invoice No" }, { t: ": " + (inv.number || ""), b: true }]);
+  cell(M + colW, y, colW, 34, [{ t: "Place of Supply" }, { t: ": " + (inv.place || c.place || ""), b: true }]); y += 34;
+  cell(M, y, colW, 58, [{ t: "Invoice Date : " + (inv.date || "") }, { t: "Terms : " + (inv.terms || "") + " Days" }, { t: "Due Date : " + (inv.due || "") }, { t: "P.O.# : " + (inv.po || "-") }]);
+  cell(M + colW, y, colW, 58, []); y += 58;
+  const billL = [{ t: "Bill To", b: true }].concat(wrap(party.name || "", 9.5, false, colW - 2 * pad).map(t => ({ t }))); if (party.gstin) billL.push({ t: "GSTIN " + party.gstin });
+  const shipL = [{ t: "Ship To", b: true }].concat(wrap(inv.ship || party.ship || party.name || "", 9.5, false, colW - 2 * pad).map(t => ({ t })));
+  const rh = Math.max(billL.length, shipL.length) * lh + 2 * pad + 2;
+  cell(M, y, colW, rh, billL); cell(M + colW, y, colW, rh, shipL); y += rh + 12;
+
+  /* items */
+  const tw = W - 2 * M;
+  const cols = b2c ? [24, 0, 56, 54, 70, 72, 80] : [24, 0, 62, 78, 62, 82];
+  cols[1] = tw - cols.reduce((a, b) => a + b, 0);
+  const heads = b2c ? ["#", "Item & Description", "HSN", "Packets", "Packet weight", "Selling price", "Amount"] : ["#", "Item & Description", "HSN", "Qty", "Rate", "Amount"];
+  const leftCol = i => i < 3;
+  const drawHead = () => {
+    R(M, y, tw, 22, { fill: BRAND }); let x = M;
+    heads.forEach((h, i) => { if (leftCol(i)) T(x + 6, y + 15, h, { size: 9, bold: true, color: "#ffffff" }); else T(x + cols[i] - 6, y + 15, h, { size: 9, bold: true, color: "#ffffff", align: "r" }); x += cols[i]; });
+    y += 22;
+  };
+  drawHead();
+  (inv.items || []).forEach((it, idx) => {
+    const cells = b2c
+      ? [String(idx + 1), it.name || "", it.hsn || "-", num(it.packets), num(it.packetG) + " g", mny(packetAmount(1, it.packetG, it.rate)), mny(itemAmount(it))]
+      : [String(idx + 1), it.name || "", it.hsn || "-", num(it.qty) + " " + (it.unit || ""), num(it.rate), mny(itemAmount(it))];
+    const nameLines = wrap(cells[1], 9.5, false, cols[1] - 12);
+    const h = Math.max(1, nameLines.length) * lh + 10;
+    if (y + h > H - 60) { newPage(); y = M; drawHead(); }
+    let x = M;
+    cells.forEach((v, i) => {
+      R(x, y, cols[i], h, { stroke: LINE });
+      if (i === 1) nameLines.forEach((l, k) => T(x + 6, y + 14 + k * lh, l, { size: 9.5 }));
+      else if (leftCol(i)) T(x + 6, y + 14, v, { size: 9.5 });
+      else T(x + cols[i] - 6, y + 14, v, { size: 9.5, align: "r" });
+      x += cols[i];
+    });
+    y += h;
+  });
+  y += 14;
+
+  /* totals, words, notes */
+  if (y + 190 > H - 40) { newPage(); y = M; }
+  let ly = y + 10;
+  T(M, ly, "Total in words", { size: 9.5, bold: true }); ly += lh + 2;
+  wrap("Indian Rupee " + rupeesWords(total) + " Only", 9.5, false, 270).forEach(l => { T(M, ly, l, { size: 9.5 }); ly += lh; });
+  if (inv.notes) { ly += 8; T(M, ly, "Notes", { size: 9.5, bold: true }); ly += lh + 2; wrap(inv.notes, 9.5, false, 270).forEach(l => { T(M, ly, l, { size: 9.5 }); ly += lh; }); }
+  const bx = W - M - 215;
+  [["Sub Total", total, false], ["Total", total, false], ["Balance Due", due, true]].forEach((r, i) => {
+    const yy = y + i * 22; R(bx, yy, 215, 22, { stroke: LINE, fill: r[2] ? "#f6eaee" : null });
+    T(bx + 8, yy + 15, r[0], { size: 9.5, bold: r[2] }); T(bx + 207, yy + 15, mny(r[1]), { size: 9.5, bold: r[2], align: "r" });
+  });
+  y = Math.max(ly, y + 66) + 22;
+
+  /* signature and QR */
+  if (y + 130 > H - 40) { newPage(); y = M; }
+  const sw = 190, sh = 124, sx = W - M - sw, qw = 130, qx = sx - 12 - qw;
+  R(sx, y, sw, sh, { stroke: "#cccccc" });
+  T(sx + sw / 2, y + 14, "For " + (c.name || ""), { size: 8.5, color: GREY, align: "c" });
+  if (sigImg) IMG(sigImg, sx + 10, y + 22, sw - 20, 56);
+  T(sx + sw / 2, y + sh - 24, inv.signatory || c.signatory || "", { size: 9.5, bold: true, align: "c" });
+  T(sx + sw / 2, y + sh - 10, "Authorized Signature", { size: 8.5, color: GREY, align: "c" });
+  R(qx, y, qw, sh, { stroke: "#cccccc" });
+  try {
+    const qr = qrcode(0, "M"); qr.addData(["CARNE", inv.number || "", inv.date || "", party.name || "", inv.ship || "", String(Math.round(total))].join("|")); qr.make();
+    const cnt = qr.getModuleCount(), cs = 92 / cnt, ox = qx + (qw - 92) / 2, oy = y + 10;
+    ops.push(rgb("#000000") + " rg");
+    for (let r = 0; r < cnt; r++) for (let k = 0; k < cnt; k++) if (qr.isDark(r, k)) ops.push((ox + k * cs).toFixed(2) + " " + (H - oy - (r + 1) * cs).toFixed(2) + " " + (cs + 0.15).toFixed(2) + " " + (cs + 0.15).toFixed(2) + " re f");
+  } catch (e) {}
+  T(qx + qw / 2, y + sh - 10, "Invoice QR", { size: 8.5, color: GREY, align: "c" });
+  if (pages.length > 1) pages.forEach((p, i) => { ops = p; T(W / 2, H - 22, "Page " + (i + 1) + " of " + pages.length, { size: 8, color: GREY, align: "c" }); });
+
+  /* assemble the PDF */
+  const latin = s => { const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 255; return b; };
+  const objs = [null, null, ["<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"], ["<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"]];
+  const imgIds = images.map(im => { objs.push(["<< /Type /XObject /Subtype /Image /Width " + im.pw + " /Height " + im.ph + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " + im.bytes.length + " >>\nstream\n", im.bytes, "\nendstream"]); return objs.length; });
+  const xo = imgIds.map((id, i) => "/Im" + i + " " + id + " 0 R").join(" ");
+  const kids = [];
+  pages.forEach(p => {
+    const body = latin(p.join("\n"));
+    objs.push(["<< /Length " + body.length + " >>\nstream\n", body, "\nendstream"]); const cid = objs.length;
+    objs.push(["<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + W + " " + H + "] /Contents " + cid + " 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << " + xo + " >> >> >>"]); kids.push(objs.length + " 0 R");
+  });
+  objs[0] = ["<< /Type /Catalog /Pages 2 0 R >>"];
+  objs[1] = ["<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + kids.length + " >>"];
+  const chunks = [latin("%PDF-1.4\n")]; let pos = chunks[0].length; const offs = [];
+  objs.forEach((parts, i) => {
+    offs.push(pos);
+    const seq = [latin((i + 1) + " 0 obj\n")].concat(parts.map(x => typeof x === "string" ? latin(x) : x), [latin("\nendobj\n")]);
+    seq.forEach(b => { chunks.push(b); pos += b.length; });
+  });
+  let xref = "xref\n0 " + (objs.length + 1) + "\n0000000000 65535 f \n";
+  offs.forEach(o => { xref += String(o).padStart(10, "0") + " 00000 n \n"; });
+  xref += "trailer << /Size " + (objs.length + 1) + " /Root 1 0 R >>\nstartxref\n" + pos + "\n%%EOF";
+  chunks.push(latin(xref));
+  const out = new Uint8Array(chunks.reduce((a, b) => a + b.length, 0)); let o = 0; chunks.forEach(b => { out.set(b, o); o += b.length; });
+  return out;
 }
 function bytesToBase64(bytes) {
   let bin = "";
@@ -4155,11 +4295,12 @@ async function emailInvoice(inv, btn) {
   if (!confirm("Send invoice " + inv.number + " (" + money(invTotal(inv)) + ") to " + list.join(", ") + "?")) return;
   const subject = "Tax invoice " + inv.number + " - " + (state.company.name || "CARNE");
   const filename = "Invoice-" + inv.number + ".pdf";
-  const pdfBytes = invoicePdf(inv);
+  let pdfBytes = null;
   emailBusy = true;
   const oldText = btn ? btn.textContent : "";
   if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
   try {
+    pdfBytes = await invoicePdf(inv);
     const res = await sbFetch("/functions/v1/send-invoice", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: list, subject, html: invoiceEmailHTML(inv), filename, pdf: bytesToBase64(pdfBytes) }) });
     if (res.status === 404) {

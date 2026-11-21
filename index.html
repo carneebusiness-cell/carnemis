@@ -3139,13 +3139,14 @@ async function rowsFromFile(file) {
   if (name.endsWith(".xlsx")) return parseXlsx(await file.arrayBuffer());
   throw new Error("Use a .csv or .xlsx file");
 }
-function partyByName(name, gstin, ship) {
+function partyByName(name, gstin, ship, email) {
   const key = String(name||"").trim().toLowerCase();
   if (!key) return state.parties[0];
   let p = state.parties.find(x => x.name.toLowerCase() === key || key.includes(x.name.toLowerCase().slice(0,6)));
   if (!p) { p = { id: uid(), name: name.trim(), gstin: gstin||"", ship: ship||"", terms: 7 }; state.parties.push(p); }
   if (gstin && !p.gstin) p.gstin = gstin;
   if (ship && !p.ship) p.ship = ship;
+  if (email && !p.email && parseEmails(email)) p.email = parseEmails(email).join(", ");
   return p;
 }
 
@@ -3308,7 +3309,7 @@ async function importInvoiceFile(file) {
       const date = normalizeDate(r.date) || form.date;
       const channel = invoiceChannel(r);
       const key = no + "|" + date + "|" + channel;
-      if (!groups[key]) groups[key] = { number: no, date, channel, party: r.party||r.customer, gstin: r.gstin||"", ship: r.ship_to||r.location||r.shipto||"", po: r.po||"", place: r.place||state.company.place, notes: r.notes||"", items: [] };
+      if (!groups[key]) groups[key] = { number: no, date, channel, party: r.party||r.customer, gstin: r.gstin||"", email: r.email||r.customer_email||"", ship: r.ship_to||r.location||r.shipto||"", po: r.po||"", place: r.place||state.company.place, notes: r.notes||"", items: [] };
       if (r.product || r.item) {
         const item = { name: r.product||r.item, hsn: r.hsn||r.hsn_code||"-", rate: n(r.rate) };
         if (channel === "b2c") {
@@ -3324,7 +3325,7 @@ async function importInvoiceFile(file) {
     const list = Object.values(groups).filter(g => g.items.length);
     let skipped = 0, reasons = [];
     list.forEach(g => {
-      const party = partyByName(g.party, g.gstin, g.ship);
+      const party = partyByName(g.party, g.gstin, g.ship, g.email);
       if (!party.books) party.books = [];
       if (!party.books.includes(g.channel)) party.books.push(g.channel);
       if (g.ship) addPartyLocation(party, g.ship);
@@ -3531,7 +3532,7 @@ function paintAllInvoices() {
     </div>
     <div class="kpis" style="margin-top:12px;">${kpi("Invoices", all.length)}${kpi("Total", money(tot))}${kpi("Due", money(due), due>0?"neg":"pos")}</div>
     <div class="actions"><button class="btn ghost" id="delSelected">Delete selected</button><button class="btn ghost" id="delAllShown">Delete all</button></div>
-    <table><thead><tr><th><input id="pickAll" type="checkbox" /></th><th>No.</th><th>Date</th><th>Type</th><th>Customer</th><th>Location</th><th class="num">Total</th><th class="num">Due</th><th></th></tr></thead><tbody>${all.map(i=>`<tr><td><input class="pick-inv" type="checkbox" value="${esc(i.id)}" /></td><td>${esc(i.number)}</td><td>${esc(i.date)}</td><td>${(i.channel||"b2b").toUpperCase()}</td><td>${esc(partyOf(i.partyId).name)}</td><td>${esc(i.ship||"—")}</td><td class="num">${money(invTotal(i))}</td><td class="num">${money(invTotal(i)-invPaid(i))}</td><td><button class="btn tiny" data-openinv="${i.id}">Open</button> <button class="btn tiny" data-delinv="${i.id}">Delete</button></td></tr>`).join("")||`<tr><td colspan="9">No tax invoices for this search.</td></tr>`}</tbody></table>
+    <table><thead><tr><th><input id="pickAll" type="checkbox" /></th><th>No.</th><th>Date</th><th>Type</th><th>Customer</th><th>Location</th><th class="num">Total</th><th class="num">Due</th><th></th></tr></thead><tbody>${all.map(i=>`<tr><td><input class="pick-inv" type="checkbox" value="${esc(i.id)}" /></td><td>${esc(i.number)}</td><td>${esc(i.date)}</td><td>${(i.channel||"b2b").toUpperCase()}</td><td>${esc(partyOf(i.partyId).name)}</td><td>${esc(i.ship||"—")}</td><td class="num">${money(invTotal(i))}</td><td class="num">${money(invTotal(i)-invPaid(i))}</td><td><button class="btn tiny" data-openinv="${i.id}">Open</button> <button class="btn tiny" data-emailinv="${i.id}" title="${i.lastEmailed ? esc("Last emailed to "+i.lastEmailed.to+" on "+String(i.lastEmailed.at).slice(0,10)) : "Not emailed yet"}">${i.lastEmailed ? "Email again" : "Email"}</button> <button class="btn tiny" data-delinv="${i.id}">Delete</button></td></tr>`).join("")||`<tr><td colspan="9">No tax invoices for this search.</td></tr>`}</tbody></table>
     <h2 style="margin-top:16px;">Day dispatch lines <span class="hint">From B2B / B2C</span></h2>
     <table><thead><tr><th>Date</th><th>Book</th><th>Customer</th><th>Location</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th><th></th></tr></thead><tbody>${dayLines.map(x=>`<tr><td>${esc(x.date)}</td><td>${x.book}</td><td>${esc(x.name)}</td><td>${esc(x.location||"—")}</td><td class="num">${num(x.qty)}</td><td class="num">${num(x.rate)}</td><td class="num">${money(x.amount)}</td><td><button class="btn tiny" data-delday="${x.book.toLowerCase()}|${x.date}|${x.index}">Delete</button></td></tr>`).join("")||`<tr><td colspan="8">No day dispatch lines for this search.</td></tr>`}</tbody></table>`;
   document.getElementById("listMode").value = mode;
@@ -3553,6 +3554,7 @@ function paintAllInvoices() {
   if (document.getElementById("listDate")) document.getElementById("listDate").onchange = () => { state.invoiceSearchValue = document.getElementById("listDate").value; paintAllInvoices(); };
   if (document.getElementById("listFrom")) document.getElementById("listFrom").onchange = () => { state.invoiceFrom = document.getElementById("listFrom").value; paintAllInvoices(); };
   if (document.getElementById("listTo")) document.getElementById("listTo").onchange = () => { state.invoiceTo = document.getElementById("listTo").value; paintAllInvoices(); };
+  document.getElementById("invoiceListCard").querySelectorAll("[data-emailinv]").forEach(b => b.onclick = () => { const inv = state.taxInvoices.find(i => i.id===b.dataset.emailinv); if (inv) emailInvoice(structuredClone(inv), b); });
   document.getElementById("invoiceListCard").querySelectorAll("[data-openinv]").forEach(b => b.onclick = () => { draft = structuredClone(state.taxInvoices.find(i => i.id===b.dataset.openinv)); document.querySelector('[data-tab="invoice"]').click(); });
   if (document.getElementById("pickAll")) document.getElementById("pickAll").onchange = () => {
     const on = document.getElementById("pickAll").checked;
@@ -3599,6 +3601,7 @@ function mergeCustomers(keepId, dropId) {
   if (!keep || !drop || keepId===dropId) return false;
   ensureParty(keep); ensureParty(drop);
   if (!keep.gstin && drop.gstin) keep.gstin = drop.gstin;
+  if (!keep.email && drop.email) keep.email = drop.email;
   if (!keep.address && drop.address) keep.address = drop.address;
   (drop.locations||[]).forEach(loc => addPartyLocation(keep, loc));
   (drop.books||[]).forEach(b => { if (!keep.books.includes(b)) keep.books.push(b); });
@@ -3618,19 +3621,20 @@ function paintCustomers() {
   (state.parties||[]).forEach(ensureParty);
   const opts = state.parties.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
   const rows = state.parties.map(p => `<tr>
-    <td>${esc(p.name)}</td><td>${esc(p.gstin||"—")}</td><td>${esc(p.address||"—")}</td>
+    <td>${esc(p.name)}</td><td>${esc(p.gstin||"—")}</td><td>${esc(p.email||"—")}</td><td>${esc(p.address||"—")}</td>
     <td>${esc((p.locations||[]).join(", ")||"—")}</td><td>${esc(p.addedOn||"—")}</td><td>${esc((p.books||[]).map(b=>b.toUpperCase()).join(", "))}</td>
     <td><button class="btn tiny" data-togglecust="${p.id}">${p.enabled===false?"Enable":"Disable"}</button> <button class="btn tiny" data-editcust="${p.id}">Edit</button></td>
   </tr>`).join("");
   document.getElementById("customersCard").innerHTML = `<h2>Customers <span class="hint">Profile</span></h2>
     <p class="note">Name, GSTIN, address, store locations, date added, and B2B or B2C. Merge two names of the same customer. The kept name is used on invoices, rates, and dispatch.</p>
-    <table><thead><tr><th>Name</th><th>GSTIN</th><th>Address</th><th>Locations</th><th>Added</th><th>Book</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="7">No customers yet.</td></tr>`}</tbody></table>
+    <table><thead><tr><th>Name</th><th>GSTIN</th><th>Email</th><th>Address</th><th>Locations</th><th>Added</th><th>Book</th><th></th></tr></thead><tbody>${rows||`<tr><td colspan="8">No customers yet.</td></tr>`}</tbody></table>
     <div class="sec">Add or edit</div>
     <input id="custId" type="hidden" />
     <div class="row" style="grid-template-columns:1fr 1fr;">
       <div><div class="lbl">Name</div><input id="custName" /></div>
       <div><div class="lbl">GSTIN</div><input id="custGst" /></div>
     </div>
+    <div class="lbl">Email (invoices are sent here; separate several with commas)</div><input id="custEmail" type="text" placeholder="accounts@customer.com" />
     <div class="lbl">Address</div><textarea id="custAddress" rows="2"></textarea>
     <div class="lbl">Locations, one per line</div><textarea id="custLocs" rows="3" placeholder="Kondapur&#10;Gachibowli"></textarea>
     <div class="row" style="grid-template-columns:1fr 1fr 1fr;">
@@ -3651,10 +3655,14 @@ function paintCustomers() {
     const id = document.getElementById("custId").value;
     const books = [document.getElementById("custB2B").checked?"b2b":"", document.getElementById("custB2C").checked?"b2c":""].filter(Boolean);
     const locs = document.getElementById("custLocs").value.split(/\n+/).map(x => x.trim()).filter(Boolean);
+    const emailsText = document.getElementById("custEmail").value.trim();
+    const emailList = emailsText ? parseEmails(emailsText) : [];
+    if (!emailList) { alert("One of the email addresses looks wrong (up to 5 allowed). Check it and try again."); return; }
     let p = state.parties.find(x => x.id===id);
     if (!p) { p = { id: uid(), terms: 7 }; state.parties.push(p); }
     p.name = name;
     p.gstin = document.getElementById("custGst").value.trim();
+    p.email = emailList.join(", ");
     p.address = document.getElementById("custAddress").value.trim();
     p.addedOn = document.getElementById("custAdded").value || today();
     p.books = books.length ? books : ["b2b"];
@@ -3677,6 +3685,7 @@ function paintCustomers() {
     document.getElementById("custId").value = p.id;
     document.getElementById("custName").value = p.name||"";
     document.getElementById("custGst").value = p.gstin||"";
+    document.getElementById("custEmail").value = p.email||"";
     document.getElementById("custAddress").value = p.address||"";
     document.getElementById("custLocs").value = (p.locations||[]).join("\n");
     document.getElementById("custAdded").value = p.addedOn||"";
@@ -4015,7 +4024,7 @@ function paintInvoice() {
     toast(saved.message + " Ready for the next invoice.");
   };
   document.getElementById("deleteInv").onclick = () => { if (deleteInvoice(draft.id)) { draft = blankInvoice(); paintInvoice(); } };
-  document.getElementById("emailInv").onclick = () => { syncDraft(); emailInvoice(draft); };
+  document.getElementById("emailInv").onclick = e => { syncDraft(); emailInvoice(draft, e.currentTarget); };
   document.getElementById("printInv").onclick = () => {
     syncDraft();
     document.getElementById("printMount").innerHTML = invoiceHTML(draft);
@@ -4046,7 +4055,7 @@ function paintInvoice() {
   preview();
 }
 
-function pdfEscape(s) { return String(s||"").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)"); }
+function pdfEscape(s) { return String(s||"").replace(/₹/g,"Rs ").replace(/[–—]/g,"-").replace(/[^\x20-\x7E]/g,"").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)"); }
 function invoicePdf(inv) {
   const party = partyOf(inv.partyId);
   const rows = [];
@@ -4099,27 +4108,77 @@ function downloadBlob(blob, name) {
   a.download = name;
   a.click();
 }
-async function emailInvoice(inv) {
+const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/;
+function parseEmails(text) {
+  const list = String(text || "").split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+  if (!list.length || list.length > 5 || list.some(x => !EMAIL_RE.test(x))) return null;
+  return list.filter((x, i) => list.indexOf(x) === i);
+}
+function invoiceEmailHTML(inv) {
+  const party = partyOf(inv.partyId), c = state.company || {};
+  const total = invTotal(inv), due = total - invPaid(inv), b2c = inv.channel === "b2c";
+  const td = 'style="padding:6px 8px;border-bottom:1px solid #e5e5e5;', tdr = td + 'text-align:right;"', tdl = td + '"';
+  const rows = (inv.items || []).map((it, i) => b2c
+    ? `<tr><td ${tdl}>${i+1}</td><td ${tdl}>${esc(it.name)}</td><td ${tdr}>${num(it.packets)} x ${num(it.packetG)} g</td><td ${tdr}>${money(packetAmount(1, it.packetG, it.rate))}</td><td ${tdr}>${money(itemAmount(it))}</td></tr>`
+    : `<tr><td ${tdl}>${i+1}</td><td ${tdl}>${esc(it.name)}</td><td ${tdr}>${num(it.qty)} ${esc(it.unit||"")}</td><td ${tdr}>${num(it.rate)}</td><td ${tdr}>${money(itemAmount(it))}</td></tr>`).join("");
+  const th = 'style="padding:6px 8px;background:#f3f3f3;text-align:left;"', thr = 'style="padding:6px 8px;background:#f3f3f3;text-align:right;"';
+  const heads = b2c ? `<th ${th}>#</th><th ${th}>Item</th><th ${thr}>Packets</th><th ${thr}>Price</th><th ${thr}>Amount</th>` : `<th ${th}>#</th><th ${th}>Item</th><th ${thr}>Qty</th><th ${thr}>Rate</th><th ${thr}>Amount</th>`;
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;max-width:680px;">
+    <p>Dear ${esc(party.name||"Customer")},</p>
+    <p>Please find your tax invoice <b>${esc(inv.number)}</b> dated ${esc(inv.date)}. The amount due is <b>${money(due)}</b>${inv.due ? ", payable by " + esc(inv.due) : ""}.</p>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #ddd;margin:14px 0;">
+      <tr><td style="padding:10px;"><b style="font-size:16px;">${esc(c.name||"CARNE")}</b><br>${esc(c.lines||"").replace(/\n/g,"<br>")}<br>GSTIN ${esc(c.gstin||"")}</td>
+          <td style="padding:10px;text-align:right;vertical-align:top;"><b style="font-size:16px;">TAX INVOICE</b><br>No. ${esc(inv.number)}<br>${esc(inv.date)}</td></tr>
+      <tr><td style="padding:10px;border-top:1px solid #ddd;"><b>Bill to</b><br>${esc(party.name||"")}<br>${party.gstin ? "GSTIN " + esc(party.gstin) : ""}</td>
+          <td style="padding:10px;border-top:1px solid #ddd;"><b>Ship to</b><br>${esc(inv.ship||party.ship||party.name||"")}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;"><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>
+    <p style="text-align:right;margin:10px 0 0;">Total <b>${money(total)}</b><br>Balance due <b>${money(due)}</b></p>
+    ${inv.notes ? `<p><b>Notes</b><br>${esc(inv.notes)}</p>` : ""}
+    <p style="margin-top:20px;">Regards,<br>${esc(inv.signatory||c.signatory||c.name||"CARNE")}<br>${esc(c.name||"")}</p>
+    <p style="color:#888;font-size:12px;">A PDF copy is attached. Reply to this email if you have any questions.</p></div>`;
+}
+let emailBusy = false;
+async function emailInvoice(inv, btn) {
+  if (emailBusy) return;
   const party = partyOf(inv.partyId);
-  let email = party.email || "";
-  if (!email) email = prompt("Customer email for " + (party.name||"this customer")) || "";
-  if (!email) return;
-  if (party.id) { party.email = email.trim(); persist(); }
-  const subject = "Tax invoice " + (inv.number||"") + " — " + (state.company.name||"CARNE");
-  const body = "Dear " + (party.name||"Customer") + ",\n\nPlease find the attached tax invoice.\n\nRegards,\n" + (inv.signatory||state.company.signatory||state.company.name||"CARNE");
-  const filename = "Invoice-" + (inv.number||"draft") + ".pdf";
-  const pdfBytes = invoicePdf(inv);
-  const pdfFile = new File([pdfBytes], filename, { type: "application/pdf" });
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-    try {
-      await navigator.share({ files: [pdfFile], title: subject, text: body });
-      toast("Share opened with the PDF invoice attached.");
-      return;
-    } catch (e) {}
+  if (!party.id) { alert("Select a customer first."); return; }
+  if (!inv.number) { alert("This invoice has no number yet."); return; }
+  let list = parseEmails(party.email);
+  if (!list) {
+    const typed = prompt("Email address for " + (party.name||"this customer") + " (separate several with commas):", party.email || "");
+    if (!typed) return;
+    list = parseEmails(typed);
+    if (!list) { alert("That email address looks wrong."); return; }
+    party.email = list.join(", "); persist();
   }
-  const eml = emlWithPdf(email, subject, body, filename, pdfBytes);
-  downloadBlob(new Blob([eml], { type: "message/rfc822" }), "Invoice-" + (inv.number||"draft") + ".eml");
-  toast("Mail file downloaded. Open it: the PDF invoice is already attached.");
+  if (!confirm("Send invoice " + inv.number + " (" + money(invTotal(inv)) + ") to " + list.join(", ") + "?")) return;
+  const subject = "Tax invoice " + inv.number + " - " + (state.company.name || "CARNE");
+  const filename = "Invoice-" + inv.number + ".pdf";
+  const pdfBytes = invoicePdf(inv);
+  emailBusy = true;
+  const oldText = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
+  try {
+    const res = await sbFetch("/functions/v1/send-invoice", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: list, subject, html: invoiceEmailHTML(inv), filename, pdf: bytesToBase64(pdfBytes) }) });
+    if (res.status === 404) {
+      const body = "Dear " + (party.name||"Customer") + ",\n\nPlease find the attached tax invoice.\n\nRegards,\n" + (inv.signatory||state.company.signatory||state.company.name||"CARNE");
+      downloadBlob(new Blob([emlWithPdf(list.join(", "), subject, body, filename, pdfBytes)], { type: "message/rfc822" }), "Invoice-" + inv.number + ".eml");
+      alert("Automatic email is not set up yet, so a mail file was downloaded instead. Open it to send. Ask your admin to deploy the send-invoice function.");
+      return;
+    }
+    let j = {}; try { j = await res.json(); } catch (e) {}
+    if (!res.ok || !j.ok) { alert("Email was not sent: " + (j.error || j.message || ("error " + res.status))); return; }
+    const saved = state.taxInvoices.find(i => i.id === inv.id);
+    if (saved) { saved.lastEmailed = { to: list.join(", "), at: new Date().toISOString(), by: (currentUser() || {}).email || "" }; persist(); queueCloud(); }
+    toast("Invoice " + inv.number + " emailed to " + list.join(", ") + ".");
+  } catch (e) {
+    alert("Email was not sent: " + e.message);
+  } finally {
+    emailBusy = false;
+    if (btn) { btn.disabled = false; btn.textContent = oldText; }
+  }
 }
 function syncDraft() {
   const previousDate = draft.date;

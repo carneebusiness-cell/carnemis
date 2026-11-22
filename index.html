@@ -20,6 +20,13 @@
   .nav .grp { display:flex; gap:4px; background:#efe6da; padding:4px; border-radius:999px; flex-wrap:wrap; }
   .nav button { border:0; background:transparent; padding:8px 12px; border-radius:999px; color:var(--muted); font-weight:600; cursor:pointer; }
   .nav button.on { background:var(--card); color:var(--ink); box-shadow:var(--shadow); }
+  .nav .dd { position:relative; background:#efe6da; border-radius:999px; padding:4px; }
+  .nav .dd.hidden { display:none; }
+  .nav .ddbtn.on { background:var(--card); color:var(--ink); box-shadow:var(--shadow); }
+  .nav .ddmenu { display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:40; min-width:190px; flex-direction:column; gap:2px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px; box-shadow:0 10px 30px rgba(0,0,0,.15); }
+  .nav .dd.open .ddmenu { display:flex; }
+  .nav .ddmenu button { text-align:left; border-radius:10px; width:100%; }
+  .nav .ddmenu button.on { background:#efe6da; box-shadow:none; }
   .guide { background:#fffdf9; border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; gap:12px; align-items:center; }
   .toast { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#1c1712; color:#fff; border-radius:14px; padding:16px 18px; z-index:200; box-shadow:var(--shadow); max-width:min(420px,90vw); text-align:center; }
   #loader { position:fixed; inset:0; z-index:180; display:none; place-items:center; background:rgba(17,17,17,.45); }
@@ -114,6 +121,9 @@
     .nav { display:none; width:100%; }
     .nav.open { display:flex; flex-direction:column; gap:8px; }
     .nav .grp { display:flex; flex-direction:column; width:100%; border-radius:16px; padding:6px; }
+    .nav .dd { width:100%; border-radius:16px; padding:6px; }
+    .nav .ddmenu { position:static; box-shadow:none; border:0; padding:4px 0 0; min-width:0; }
+    .nav .ddbtn { width:100%; text-align:left; }
     .nav button { width:100%; text-align:left; padding:12px 14px; min-height:46px; white-space:normal; }
     main { padding:12px 12px calc(110px + env(safe-area-inset-bottom)); }
     .layout,.split,.g3,.g2,.row,.filters { grid-template-columns:1fr !important; }
@@ -211,23 +221,26 @@
 <header class="app">
   <div class="brand"><div class="mark" id="brandMark">C</div><div><h1>CARNE Trade Book</h1><div class="sub">Purchases · vendor dues · invoices · receipts · P&L</div><div class="who" id="who"></div></div><button class="btn tiny" id="menuBtn" type="button">Menu</button></div>
   <div class="nav" id="mainNav">
-    <span class="grp"><button class="on" data-tab="b2b" onclick="window.openTab&&openTab('b2b')">B2B day</button><button data-tab="b2c" onclick="window.openTab&&openTab('b2c')">B2C day</button></span>
-    <span class="grp"><button data-tab="invoice" onclick="window.openTab&&openTab('invoice')">New invoice</button><button data-tab="invoicelist" onclick="window.openTab&&openTab('invoicelist')">All invoices</button><button data-tab="customers" onclick="window.openTab&&openTab('customers')">Customers</button><button data-tab="dues" onclick="window.openTab&&openTab('dues')">Customer dues</button></span>
-    <span class="grp"><button data-tab="orders" onclick="window.openTab&&openTab('orders')">Orders</button><button data-tab="vendors" onclick="window.openTab&&openTab('vendors')">Vendors</button><button data-tab="cash" onclick="window.openTab&&openTab('cash')">Cash</button></span>
-    <span class="grp"><button data-tab="inventory" onclick="window.openTab&&openTab('inventory')">Inventory</button><button data-tab="products" onclick="window.openTab&&openTab('products')">Products</button><button data-tab="report" onclick="window.openTab&&openTab('report')">Reports</button><button data-tab="customer" onclick="window.openTab&&openTab('customer')">Customer P&L</button><button data-tab="history" onclick="window.openTab&&openTab('history')">History</button><button data-tab="users" onclick="window.openTab&&openTab('users')">Users</button><button data-tab="company" onclick="window.openTab&&openTab('company')">Company</button></span>
+    <div class="dd" data-dd="trading"><button class="ddbtn" type="button" data-dd="trading">Daily Trading ▾</button><div class="ddmenu"><button data-tab="upload" onclick="window.openTab&&openTab('upload')">Upload</button><button data-tab="orders" onclick="window.openTab&&openTab('orders')">Orders</button><button data-tab="inventory" onclick="window.openTab&&openTab('inventory')">Inventory</button><button data-tab="products" onclick="window.openTab&&openTab('products')">Products</button><button data-tab="rates" onclick="window.openTab&&openTab('rates')">Product rates</button></div></div>
+    <div class="dd" data-dd="sales"><button class="ddbtn" type="button" data-dd="sales">Sales &amp; Customers ▾</button><div class="ddmenu"><button data-tab="invoice" onclick="window.openTab&&openTab('invoice')">New invoice</button><button data-tab="invoicelist" onclick="window.openTab&&openTab('invoicelist')">All invoices</button><button data-tab="customers" onclick="window.openTab&&openTab('customers')">Customers</button><button data-tab="dues" onclick="window.openTab&&openTab('dues')">Customer dues</button></div></div>
+    <div class="dd" data-dd="money"><button class="ddbtn" type="button" data-dd="money">Purchases &amp; Money ▾</button><div class="ddmenu"><button data-tab="vendors" onclick="window.openTab&&openTab('vendors')">Vendors</button><button data-tab="cash" onclick="window.openTab&&openTab('cash')">Cash</button></div></div>
+    <div class="dd" data-dd="reports"><button class="ddbtn" type="button" data-dd="reports">Reports ▾</button><div class="ddmenu"><button data-tab="summary" onclick="window.openTab&&openTab('summary')">Summary</button><button data-tab="report" onclick="window.openTab&&openTab('report')">Reports</button><button data-tab="customer" onclick="window.openTab&&openTab('customer')">Customer P&amp;L</button><button data-tab="history" onclick="window.openTab&&openTab('history')">History</button></div></div>
+    <div class="dd" data-dd="admin"><button class="ddbtn" type="button" data-dd="admin">Admin ▾</button><div class="ddmenu"><button data-tab="users" onclick="window.openTab&&openTab('users')">Users</button><button data-tab="company" onclick="window.openTab&&openTab('company')">Company</button></div></div>
     <button class="btn tiny" id="logout" type="button" onclick="window.doLogout && window.doLogout()">Logout</button>
   </div>
 </header>
 <main>
-  <section id="entry" class="layout">
+  <section id="entry" class="layout" style="grid-template-columns:1fr;">
     <div class="card">
       <div class="guide" id="guide"><div><b>Daily steps.</b> Pick the date, enter purchases with a vendor, add customer dispatch, then Save this day. Use New invoice only when you need a tax invoice.</div><button class="btn tiny" id="hideGuide" type="button">Hide</button></div>
       <div class="card" id="cloudCard" style="margin-bottom:14px;">
         <h2>Books <span class="hint" id="cloudStatus">Ready</span></h2>
         <div class="actions"><button class="btn primary" id="sheetLoad" type="button">Load data</button></div>
       </div>
+      <div class="card" id="uploadCard" style="margin-bottom:14px;"></div>
       <div class="card" id="carcassSplitCard" style="margin-bottom:14px;"></div>
-      <h2 id="entryTitle">B2B day entry <span class="hint" id="entryHint">Daily entry</span></h2>
+      <div class="switch" id="chSwitch" style="margin-bottom:8px;"><button type="button" data-ch="b2b">B2B</button><button type="button" data-ch="b2c">B2C</button></div>
+      <h2 id="entryTitle">B2B day entry <span class="hint" id="entryHint">Enter manually</span></h2>
       <div class="row" style="grid-template-columns:160px 1fr 1fr;">
         <div><div class="lbl">Date</div><input id="date" type="date" /></div>
         <div><div class="lbl">Opening cash</div><input id="opening" type="number" step="1" placeholder="0" /></div>
@@ -295,9 +308,10 @@
       </div>
       <p class="note">Only a credit carcass purchase is added to the vendor. Cash carcass is an expense. By-products are never added to the vendor.</p>
     </div>
-    <div class="card" id="liveCard"></div>
+    <div class="card" id="liveCard" style="display:none"></div>
   </section>
-  <section id="orders" class="hidden"><div class="card" id="ordersForm" style="margin-bottom:14px;"></div><div class="card" id="ordersPlan" style="margin-bottom:14px;"></div><div class="card" id="ordersList"></div></section>
+  <section id="summary" class="hidden"><div class="card" id="summaryCard"></div></section>
+  <section id="orders" class="hidden"><div class="card" id="indentCard" style="margin-bottom:14px;"></div><div class="card" id="ordersForm" style="margin-bottom:14px;"></div><div class="card" id="ordersPlan" style="margin-bottom:14px;"></div><div class="card" id="ordersList"></div></section>
   <section id="report" class="hidden"><div class="card" id="reportCard"></div></section>
   <section id="vendors" class="hidden"><div class="split"><div class="card" id="vendorForm"></div><div class="card" id="vendorBook"></div></div></section>
   <section id="customers" class="hidden"><div class="card" id="customersCard"></div></section>
@@ -395,12 +409,12 @@ document.addEventListener("DOMContentLoaded", function () {
 var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(l=4*u+17),e(0,0),e(l-7,0),e(0,l-7),i(),o(),v(t,r),7<=u&&h(t),null==n&&(n=w(u,f,c)),d(n,r)}var u=t,f=y[r],g=null,l=0,n=null,c=[],s={},e=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||l<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||l<=r+n||(g[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},o=function(){for(var t=8;t<l-8;t+=1)null==g[t][6]&&(g[t][6]=t%2==0);for(var r=8;r<l-8;r+=1)null==g[6][r]&&(g[6][r]=r%2==0)},i=function(){for(var t=B.getPatternPosition(u),r=0;r<t.length;r+=1)for(var e=0;e<t.length;e+=1){var n=t[r],o=t[e];if(null==g[n][o])for(var i=-2;i<=2;i+=1)for(var a=-2;a<=2;a+=1)g[n+i][o+a]=-2==i||2==i||-2==a||2==a||0==i&&0==a}},h=function(t){for(var r=B.getBCHTypeNumber(u),e=0;e<18;e+=1){var n=!t&&1==(r>>e&1);g[Math.floor(e/3)][e%3+l-8-3]=n}for(e=0;e<18;e+=1){n=!t&&1==(r>>e&1);g[e%3+l-8-3][Math.floor(e/3)]=n}},v=function(t,r){for(var e=f<<3|r,n=B.getBCHTypeInfo(e),o=0;o<15;o+=1){var i=!t&&1==(n>>o&1);o<6?g[o][8]=i:o<8?g[o+1][8]=i:g[l-15+o][8]=i}for(o=0;o<15;o+=1){i=!t&&1==(n>>o&1);o<8?g[8][l-o-1]=i:o<9?g[8][15-o-1+1]=i:g[8][15-o-1]=i}g[l-8][8]=!t},d=function(t,r){for(var e=-1,n=l-1,o=7,i=0,a=B.getMaskFunction(r),u=l-1;0<u;u-=2)for(6==u&&(u-=1);;){for(var f=0;f<2;f+=1)if(null==g[n][u-f]){var c=!1;i<t.length&&(c=1==(t[i]>>>o&1)),a(n,u-f)&&(c=!c),g[n][u-f]=c,-1==(o-=1)&&(i+=1,o=7)}if((n+=e)<0||l<=n){n-=e,e=-e;break}}},w=function(t,r,e){for(var n=b.getRSBlocks(t,r),o=M(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=C(i[u],l.getLength()-1).mod(l);a[u]=new Array(l.getLength()-1);for(g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=0<=s?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};s.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=x(t);break;case"Alphanumeric":e=m(t);break;case"Byte":e=L(t);break;case"Kanji":e=D(t);break;default:throw"mode:"+r}c.push(e),n=null},s.isDark=function(t,r){if(t<0||l<=t||r<0||l<=r)throw t+","+r;return g[t][r]},s.getModuleCount=function(){return l},s.make=function(){if(u<1){for(var t=1;t<40;t++){for(var r=b.getRSBlocks(t,f),e=M(),n=0;n<c.length;n++){var o=c[n];e.put(o.getMode(),4),e.put(o.getLength(),B.getLengthInBits(o.getMode(),t)),o.write(e)}var i=0;for(n=0;n<r.length;n++)i+=r[n].dataCount;if(e.getLengthInBits()<=8*i)break}u=t}a(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){a(!0,e);var n=B.getLostPoint(s);(0==e||n<t)&&(t=n,r=e)}return r}())},s.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<s.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<s.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=s.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},s.createSvgTag=function(t,r,e,n){var o={};"object"==typeof t&&(t=(o=t).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,f,c=s.getModuleCount()*t+2*r,g="";for(f="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",g+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',g+=o.scalable?"":' width="'+c+'px" height="'+c+'px"',g+=' viewBox="0 0 '+c+" "+c+'" ',g+=' preserveAspectRatio="xMinYMin meet"',g+=n.text||e.text?' role="img" aria-labelledby="'+p([n.id,e.id].join(" ").trim())+'"':"",g+=">",g+=n.text?'<title id="'+p(n.id)+'">'+p(n.text)+"</title>":"",g+=e.text?'<description id="'+p(e.id)+'">'+p(e.text)+"</description>":"",g+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',g+='<path d="',a=0;a<s.getModuleCount();a+=1)for(u=a*t+r,i=0;i<s.getModuleCount();i+=1)s.isDark(a,i)&&(g+="M"+(i*t+r)+","+u+f);return g+='" stroke="transparent" fill="black"/>',g+="</svg>"},s.createDataURL=function(o,t){o=o||2,t=void 0===t?4*o:t;var r=s.getModuleCount()*o+2*t,i=t,a=r-t;return I(r,r,function(t,r){if(i<=t&&t<a&&i<=r&&r<a){var e=Math.floor((t-i)/o),n=Math.floor((r-i)/o);return s.isDark(n,e)?0:1}return 1})},s.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=s.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=s.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=p(e),o+='"'),o+="/>"};var p=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return s.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*s.getModuleCount()+2*t,u=t,f=a-t,c={"██":"█","█ ":"▀"," █":"▄","  ":" "},g={"██":"▀","█ ":"▀"," █":" ","  ":" "},l="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<f&&u<=r&&r<f&&s.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<f&&u<=r+1&&r+1<f&&s.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",l+=t<1&&f<=r+1?g[i]:c[i];l+="\n"}return a%2&&0<t?l.substring(0,l.length-a-1)+Array(1+a).join("▀"):l.substring(0,l.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=s.getModuleCount()*t+2*r,u=r,f=a-r,c=Array(t+1).join("██"),g=Array(t+1).join("  "),l="",h="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),h="",n=0;n<a;n+=1)i=1,u<=n&&n<f&&u<=e&&e<f&&s.isDark(o,Math.floor((n-u)/t))&&(i=0),h+=i?c:g;for(o=0;o<t;o+=1)l+=h+"\n"}return l.substring(0,l.length-1)},s.renderTo2dContext=function(t,r){r=r||2;for(var e=s.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=s.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},s}i.stringToBytes=(i.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,i.createStringToBytes=function(u,f){var i=function(){function t(){var t=r.read();if(-1==t)throw"eof";return t}for(var r=S(u),e=0,n={};;){var o=r.read();if(-1==o)break;var i=t(),a=t()<<8|t();n[String.fromCharCode(o<<8|i)]=a,e+=1}if(e!=f)throw e+" != "+f;return n}(),a="?".charCodeAt(0);return function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);if(n<128)r.push(n);else{var o=i[t.charAt(e)];"number"==typeof o?(255&o)==o?r.push(o):(r.push(o>>>8),r.push(255&o)):r.push(a)}}return r}};var r,t,a=1,u=2,o=4,f=8,y={L:1,M:0,Q:3,H:2},e=0,n=1,c=2,g=3,l=4,h=5,s=6,v=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],(t={}).getBCHTypeInfo=function(t){for(var r=t<<10;0<=d(r)-d(1335);)r^=1335<<d(r)-d(1335);return 21522^(t<<10|r)},t.getBCHTypeNumber=function(t){for(var r=t<<12;0<=d(r)-d(7973);)r^=7973<<d(r)-d(7973);return t<<12|r},t.getPatternPosition=function(t){return r[t-1]},t.getMaskFunction=function(t){switch(t){case e:return function(t,r){return(t+r)%2==0};case n:return function(t,r){return t%2==0};case c:return function(t,r){return r%3==0};case g:return function(t,r){return(t+r)%3==0};case l:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case h:return function(t,r){return t*r%2+t*r%3==0};case s:return function(t,r){return(t*r%2+t*r%3)%2==0};case v:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},t.getErrorCorrectPolynomial=function(t){for(var r=C([1],0),e=0;e<t;e+=1)r=r.multiply(C([1,w.gexp(e)],0));return r},t.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case o:case f:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case o:return 16;case f:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case o:return 16;case f:return 12;default:throw"mode:"+t}}},t.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);5<i&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},t);function d(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r}var w=function(){for(var r=new Array(256),e=new Array(256),t=0;t<8;t+=1)r[t]=1<<t;for(t=8;t<256;t+=1)r[t]=r[t-4]^r[t-5]^r[t-6]^r[t-8];for(t=0;t<255;t+=1)e[r[t]]=t;var n={glog:function(t){if(t<1)throw"glog("+t+")";return e[t]},gexp:function(t){for(;t<0;)t+=255;for(;256<=t;)t-=255;return r[t]}};return n}();function C(n,o){if(void 0===n.length)throw n.length+"/"+o;var r=function(){for(var t=0;t<n.length&&0==n[t];)t+=1;for(var r=new Array(n.length-t+o),e=0;e<n.length-t;e+=1)r[e]=n[e+t];return r}(),i={getAt:function(t){return r[t]},getLength:function(){return r.length},multiply:function(t){for(var r=new Array(i.getLength()+t.getLength()-1),e=0;e<i.getLength();e+=1)for(var n=0;n<t.getLength();n+=1)r[e+n]^=w.gexp(w.glog(i.getAt(e))+w.glog(t.getAt(n)));return C(r,0)},mod:function(t){if(i.getLength()-t.getLength()<0)return i;for(var r=w.glog(i.getAt(0))-w.glog(t.getAt(0)),e=new Array(i.getLength()),n=0;n<i.getLength();n+=1)e[n]=i.getAt(n);for(n=0;n<t.getLength();n+=1)e[n]^=w.gexp(w.glog(t.getAt(n))+r);return C(e,0).mod(t)}};return i}function p(){var e=[],o={writeByte:function(t){e.push(255&t)},writeShort:function(t){o.writeByte(t),o.writeByte(t>>>8)},writeBytes:function(t,r,e){r=r||0,e=e||t.length;for(var n=0;n<e;n+=1)o.writeByte(t[n+r])},writeString:function(t){for(var r=0;r<t.length;r+=1)o.writeByte(t.charCodeAt(r))},toByteArray:function(){return e},toString:function(){var t="";t+="[";for(var r=0;r<e.length;r+=1)0<r&&(t+=","),t+=e[r];return t+="]"}};return o}var k,A,b=(k=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],(A={}).getRSBlocks=function(t,r){var e=function(t,r){switch(r){case y.L:return k[4*(t-1)+0];case y.M:return k[4*(t-1)+1];case y.Q:return k[4*(t-1)+2];case y.H:return k[4*(t-1)+3];default:return}}(t,r);if(void 0===e)throw"bad rs block @ typeNumber:"+t+"/errorCorrectionLevel:"+r;for(var n,o,i=e.length/3,a=[],u=0;u<i;u+=1)for(var f=e[3*u+0],c=e[3*u+1],g=e[3*u+2],l=0;l<f;l+=1)a.push((n=g,o=void 0,(o={}).totalCount=c,o.dataCount=n,o));return a},A),M=function(){var e=[],n=0,o={getBuffer:function(){return e},getAt:function(t){var r=Math.floor(t/8);return 1==(e[r]>>>7-t%8&1)},put:function(t,r){for(var e=0;e<r;e+=1)o.putBit(1==(t>>>r-e-1&1))},getLengthInBits:function(){return n},putBit:function(t){var r=Math.floor(n/8);e.length<=r&&e.push(0),t&&(e[r]|=128>>>n%8),n+=1}};return o},x=function(t){var r=a,n=t,e={getMode:function(){return r},getLength:function(t){return n.length},write:function(t){for(var r=n,e=0;e+2<r.length;)t.put(o(r.substring(e,e+3)),10),e+=3;e<r.length&&(r.length-e==1?t.put(o(r.substring(e,e+1)),4):r.length-e==2&&t.put(o(r.substring(e,e+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return e},m=function(t){var r=u,n=t,e={getMode:function(){return r},getLength:function(t){return n.length},write:function(t){for(var r=n,e=0;e+1<r.length;)t.put(45*o(r.charAt(e))+o(r.charAt(e+1)),11),e+=2;e<r.length&&t.put(o(r.charAt(e)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return e},L=function(t){var r=o,e=i.stringToBytes(t),n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=0;r<e.length;r+=1)t.put(e[r],8)}};return n},D=function(t){var r=f,e=i.stringToBytesFuncs.SJIS;if(!e)throw"sjis not supported.";!function(){var t=e("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=e(t),n={getMode:function(){return r},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return n},S=function(t){var e=t,n=0,o=0,i=0,r={read:function(){for(;i<8;){if(n>=e.length){if(0==i)return-1;throw"unexpected end of file./"+i}var t=e.charAt(n);if(n+=1,"="==t)return i=0,-1;t.match(/^\s$/)||(o=o<<6|a(t.charCodeAt(0)),i+=6)}var r=o>>>i-8&255;return i-=8,r}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return r},I=function(t,r,e){for(var n=function(t,r){var n=t,o=r,l=new Array(t*r),e={setPixel:function(t,r,e){l[r*n+t]=e},write:function(t){t.writeString("GIF87a"),t.writeShort(n),t.writeShort(o),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(n),t.writeShort(o),t.writeByte(0);var r=i(2);t.writeByte(2);for(var e=0;255<r.length-e;)t.writeByte(255),t.writeBytes(r,e,255),e+=255;t.writeByte(r.length-e),t.writeBytes(r,e,r.length-e),t.writeByte(0),t.writeString(";")}},i=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,o=h(),i=0;i<r;i+=1)o.add(String.fromCharCode(i));o.add(String.fromCharCode(r)),o.add(String.fromCharCode(e));var a=p(),u=function(t){var e=t,n=0,o=0,r={write:function(t,r){if(t>>>r!=0)throw"length over";for(;8<=n+r;)e.writeByte(255&(t<<n|o)),r-=8-n,t>>>=8-n,n=o=0;o|=t<<n,n+=r},flush:function(){0<n&&e.writeByte(o)}};return r}(a);u.write(r,n);var f=0,c=String.fromCharCode(l[f]);for(f+=1;f<l.length;){var g=String.fromCharCode(l[f]);f+=1,o.contains(c+g)?c+=g:(u.write(o.indexOf(c),n),o.size()<4095&&(o.size()==1<<n&&(n+=1),o.add(c+g)),c=g)}return u.write(o.indexOf(c),n),u.write(e,n),u.flush(),a.toByteArray()},h=function(){var r={},e=0,n={add:function(t){if(n.contains(t))throw"dup key:"+t;r[t]=e,e+=1},size:function(){return e},indexOf:function(t){return r[t]},contains:function(t){return void 0!==r[t]}};return n};return e}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=p();n.write(a);for(var u=function(){function e(t){a+=String.fromCharCode(r(63&t))}var n=0,o=0,i=0,a="",t={},r=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return t.writeByte=function(t){for(n=n<<8|255&t,o+=8,i+=1;6<=o;)e(n>>>o-6),o-=6},t.flush=function(){if(0<o&&(e(n<<6-o),o=n=0),i%3!=0)for(var t=3-i%3,r=0;r<t;r+=1)a+="="},t.toString=function(){return a},t}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return i}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||57344<=n?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
 var activeUser = null;
 const ACCESS = [
-  ["b2b","B2B day"],["b2c","B2C day"],["inventory","Inventory"],["products","Products"],["summary","Live summary"],
+  ["upload","Upload"],["inventory","Inventory"],["products","Products"],["summary","Summary"],
   ["invoice","New invoice"],["invoicelist","All invoices"],["customers","Customers"],["dues","Customer dues"],
   ["vendors","Vendors"],["cash","Cash"],["rates","Product rates"],["report","Reports"],
   ["customer","Customer P&L"],["history","History"],["orders","Orders"]
 ];
-const ENTRY_TABS = ["b2b","b2c","inventory","products","orders"];
+const ENTRY_TABS = ["upload","inventory","products","orders"];
 const ALL_TABS = ACCESS.map(a => a[0]);
 /* Levels. write = add/edit, del = delete/clear, settings = company, users, backup/import */
 const ROLES = {
@@ -555,7 +569,9 @@ function allowed(tab) {
   if (!u) return false;
   if (u.role === "admin") return true;
   if (tab === "orders") return !!(ROLES[u.role] && ROLES[u.role].access.includes("orders"));
-  return (u.access || ENTRY_TABS).includes(tab);
+  const acc = u.access || ENTRY_TABS;
+  if (tab === "upload" || tab === "b2b" || tab === "b2c") return acc.includes("upload") || acc.includes("b2b") || acc.includes("b2c");
+  return acc.includes(tab);
 }
 function shrinkLogo(dataUrl) {
   return new Promise(resolve => {
@@ -695,7 +711,7 @@ function handleAsk(raw) {
   askSay(q, true);
   const low = q.toLowerCase();
   const go = {
-    "b2b":"b2b","b2c":"b2c","invoice":"invoice","new invoice":"invoice","all invoices":"invoicelist","invoices":"invoicelist",
+    "b2b":"b2b","b2c":"b2c","upload":"upload","summary":"summary","invoice":"invoice","new invoice":"invoice","all invoices":"invoicelist","invoices":"invoicelist",
     "dues":"dues","customer dues":"dues","vendors":"vendors","cash":"cash","inventory":"inventory","products":"products",
     "rates":"rates","product rates":"rates","reports":"report","report":"report","customer p&l":"customer","history":"history","users":"users","company":"company"
   };
@@ -749,6 +765,7 @@ function applyAccess() {
   document.querySelectorAll(".nav button[data-tab]").forEach(b => {
     b.classList.toggle("hidden", !allowed(b.dataset.tab));
   });
+  document.querySelectorAll(".nav .dd").forEach(d => d.classList.toggle("hidden", !Array.from(d.querySelectorAll("button[data-tab]")).some(b => !b.classList.contains("hidden"))));
   const cloud = document.getElementById("cloudCard");
   if (cloud) cloud.classList.toggle("hidden", !u);
   const live = document.getElementById("liveCard");
@@ -1059,7 +1076,7 @@ function mergeState(base, loc, rem) {
 }
 
 /* --- which parts of the app state live in which table --- */
-const LOCAL_ONLY = new Set(["orderPlanDate", "users", "invoiceDraft", "reportDate", "reportFrom", "reportTo", "reportChannel", "reportMode", "reportType", "rateParty", "editPayId", "editCashId", "editVendorId", "invoiceSearchValue", "invoiceSearchMode", "invDate", "custMode", "productParty", "productBook", "rateBook", "custBook", "invoiceFrom", "invoiceTo", "mailStatus", "draftSavedAt"]);
+const LOCAL_ONLY = new Set(["uploadChannel", "sumDate", "sumMode", "slipDraft", "indentDraft", "orderPlanDate", "users", "invoiceDraft", "reportDate", "reportFrom", "reportTo", "reportChannel", "reportMode", "reportType", "rateParty", "editPayId", "editCashId", "editVendorId", "invoiceSearchValue", "invoiceSearchMode", "invDate", "custMode", "productParty", "productBook", "rateBook", "custBook", "invoiceFrom", "invoiceTo", "mailStatus", "draftSavedAt"]);
 const LISTS = { taxInvoices: "tax_invoices", parties: "parties", vendors: "vendors", vendorTxns: "vendor_txns", cashBook: "cash_book", orders: "orders" };
 const MAPS = { days: ["day_books", "b2b:"], daysB2C: ["day_books", "b2c:"], carcassSplit: ["carcass_splits", ""] };
 const TABLES = ["settings", "parties", "vendors", "vendor_txns", "tax_invoices", "cash_book", "day_books", "carcass_splits", "orders"];
@@ -1332,6 +1349,12 @@ form.date = form.date || today();
 form.channel = form.channel || "b2b";
 
 function isB2C() { return form.channel === "b2c"; }
+function curChannel() {
+  const on = document.querySelector(".nav button.on"), t = on && on.dataset.tab;
+  if (t === "b2c") return "b2c";
+  if (t === "upload") return state.uploadChannel === "b2c" ? "b2c" : "b2b";
+  return "b2b";
+}
 function dayStore() { return isB2C() ? state.daysB2C : state.days; }
 function toKg(qty, unit) {
   const q = n(qty);
@@ -2597,7 +2620,7 @@ function paintReports() {
   const type = state.reportType || "daily";
   const mode = state.reportMode || "daily";
   const days = reportDays();
-  const title = { daily: "Daily / period report", weight: "Weight loss or gain", item: "Item wise", purchases: "Carcass and by-product purchases", vendor: "Vendor purchases and payments", customer: "Customer wise", b2cwaste: "B2C purchases and wastage", pnl: "Profit and loss", balance: "Balance sheet", cashflow: "Cash flow statement" }[type];
+  const title = { bothsummary: "B2B + B2C summary", ordersrep: "Orders: ordered and bought", daily: "Daily / period report", weight: "Weight loss or gain", item: "Item wise", purchases: "Carcass and by-product purchases", vendor: "Vendor purchases and payments", customer: "Customer wise", b2cwaste: "B2C purchases and wastage", pnl: "Profit and loss", balance: "Balance sheet", cashflow: "Cash flow statement" }[type];
   let body = "", csv = [];
   if (type === "daily") {
     const rows = days.map(d => { const r = compute(d); return { d, r }; });
@@ -2771,6 +2794,12 @@ function paintReports() {
     body = barChart(rows.map(x => ({ label: x.customer, value: x.pnl })), "Customer profit or loss") + `<div class="kpis">${kpi("Customers", rows.length)}${kpi("Sales", money(tot.sales))}${kpi("P&L", money(tot.pnl), tot.pnl>=0?"pos":"neg")}</div>
       <table><thead><tr><th>Customer</th><th>Book</th><th class="num">Weight kg</th><th class="num">Sales</th><th class="num">Cost</th><th class="num">P&L</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.customer)}</td><td>${x.book}</td><td class="num">${num(x.weight)}</td><td class="num">${money(x.sales)}</td><td class="num">${money(x.cost)}</td><td class="num">${money(x.pnl)}</td></tr>`).join("")||`<tr><td colspan="6">No customer lines in this selection.</td></tr>`}</tbody></table>`;
     csv = [["Customer","Book","Weight kg","Sales","Cost","P&L"]].concat(rows.map(x=>[x.customer,x.book,x.weight,x.sales,x.cost,x.pnl]));
+  } else if (type === "bothsummary") {
+    const sp = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo); body = summaryHTML(sp);
+    const S = summaryData(sp); csv = [["Metric","B2B","B2C","Combined"]].concat([["Carcass kg","carcassKg"],["Invoice kg","invoiceKg"],["Weight loss kg","lossKg"],["Landing","landing"],["Offal","offal"],["By-product sales","byProd"],["Expenditure","exp"],["Costing per kg","cu"],["Invoice sales","sales"],["Profit loss","pnl"],["Net cash","net"]].map(([l,k]) => [l,S.b2b[k],S.b2c[k],S.all[k]]));
+  } else if (type === "ordersrep") {
+    const sp = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo); body = ordersReportHTML(sp);
+    const D = ordersReportData(sp); csv = [["Delivery","Customer","Outlet","Product","Qty","Unit","Book"]].concat(D.rows.map(r => [r.date,r.customer,r.outlet,r.product,r.qty,r.unit,r.ch]));
   } else if (type === "b2cwaste") {
     const span = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo);
     const dates = Object.keys(state.daysB2C || {}).filter(d => d >= span.from && d <= span.to).sort();
@@ -2818,7 +2847,7 @@ function paintReports() {
   document.getElementById("reportCard").innerHTML = `<h2>Reports <span class="hint">${title}</span></h2>
     <div class="row" style="grid-template-columns:1fr 1fr 1fr;">
       <div><div class="lbl">Book</div><select id="repChannel"><option value="all">B2B and B2C</option><option value="b2b">B2B</option><option value="b2c">B2C</option></select></div>
-      <div><div class="lbl">Report</div><select id="repType"><option value="daily">Daily / period</option><option value="pnl">Profit and loss</option><option value="balance">Balance sheet</option><option value="cashflow">Cash flow statement</option><option value="weight">Weight loss or gain</option><option value="purchases">Carcass and by-products</option><option value="vendor">Vendor purchases and payments</option><option value="item">Item wise</option><option value="customer">Customer wise</option><option value="b2cwaste">B2C purchases and wastage</option></select></div>
+      <div><div class="lbl">Report</div><select id="repType"><option value="daily">Daily / period</option><option value="pnl">Profit and loss</option><option value="balance">Balance sheet</option><option value="cashflow">Cash flow statement</option><option value="weight">Weight loss or gain</option><option value="purchases">Carcass and by-products</option><option value="vendor">Vendor purchases and payments</option><option value="item">Item wise</option><option value="customer">Customer wise</option><option value="b2cwaste">B2C purchases and wastage</option><option value="bothsummary">B2B + B2C summary</option><option value="ordersrep">Orders: ordered and bought</option></select></div>
       <div><div class="lbl">Range</div><select id="repMode"><option value="daily">One day</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="fy">Financial year</option><option value="custom">Custom dates</option></select></div>
     </div>
     <div class="row" style="grid-template-columns:1fr 1fr;margin-top:8px;">
@@ -2869,8 +2898,9 @@ function updateEntryChrome() {
   const note = document.getElementById("b2cNote");
   const weightLbl = document.getElementById("weightLbl");
   const rateLbl = document.getElementById("rateLbl");
-  if (title && title.firstChild) title.firstChild.textContent = isB2C() ? "B2C day entry " : "B2B day entry ";
+  if (title && title.firstChild) title.firstChild.textContent = isB2C() ? "Enter manually: B2C day " : "Enter manually: B2B day ";
   if (hint) hint.textContent = isB2C() ? "Weight in kilograms or grams" : "Daily entry";
+  const sw = document.getElementById("chSwitch"); if (sw) sw.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.ch === (isB2C() ? "b2c" : "b2b")));
   if (note) note.classList.toggle("hidden", !isB2C());
   if (weightLbl) weightLbl.textContent = isB2C() ? "Weight" : "Weight kg";
   if (rateLbl) rateLbl.textContent = isB2C() ? "Rate / kg" : "Rate";
@@ -2969,7 +2999,7 @@ function saveCarcassSplit(i) {
 }
 function loadDay(date) {
   if (!date) return;
-  const channel = document.querySelector(".nav button.on") && document.querySelector(".nav button.on").dataset.tab === "b2c" ? "b2c" : "b2b";
+  const channel = curChannel();
   const oldDate = form.date;
   if (oldDate && oldDate !== date && oldDate <= today()) {
     readForm();
@@ -3040,7 +3070,7 @@ function syncVendorPurchases() {
       d.channel = channel;
       if (!d.vendorId) d.vendorId = fallback;
       (d.purchases || []).forEach(line => {
-        if (!isCarcassLine(line) && !(line.src === "order" && line.vendorId)) return;
+        if (!isCarcassLine(line) && !((line.src === "order" || line.src === "slip") && line.vendorId)) return;
         const vendorId = line.vendorId || d.vendorId || fallback;
         if (String(line.pay||"credit").toLowerCase()==="cash") return;
         const amount = toKg(line.qty, line.unit || "kg") * n(line.buy);
@@ -3712,7 +3742,7 @@ function paintCustomers() {
     </div>
     <div class="lbl">Email (invoices are sent here; separate several with commas)</div><input id="custEmail" type="text" placeholder="accounts@customer.com" />
     <div class="lbl">Address</div><textarea id="custAddress" rows="2"></textarea>
-    <div class="lbl">Locations, one per line</div><textarea id="custLocs" rows="3" placeholder="Kondapur&#10;Gachibowli"></textarea>
+    <div class="lbl">Outlets / branches (locations), one per line</div><textarea id="custLocs" rows="3" placeholder="Kondapur&#10;Gachibowli"></textarea>
     <div class="row" style="grid-template-columns:1fr 1fr 1fr;">
       <div><div class="lbl">Date of inclusion</div><input id="custAdded" type="date" /></div>
       <div><div class="lbl">B2B</div><input id="custB2B" type="checkbox" checked /></div>
@@ -4694,14 +4724,15 @@ function paintOrders() {
   const lineRow = (l, i) => `<div class="row" data-line="${i}" style="grid-template-columns:1.4fr .6fr .5fr .6fr .6fr .6fr auto;align-items:end;margin-top:6px;">
       <div><input data-k="name" list="orderNames" value="${esc(l.name)}" placeholder="Product" /></div>
       <div><input data-k="qty" type="number" step="any" value="${esc(l.qty)}" placeholder="Qty" /></div>
-      <div><select data-k="unit"><option value="kg" ${l.unit==="kg"?"selected":""}>kg</option><option value="g" ${l.unit==="g"?"selected":""}>g</option></select></div>
+      <div><select data-k="unit"><option value="kg" ${l.unit==="kg"?"selected":""}>kg</option><option value="g" ${l.unit==="g"?"selected":""}>g</option><option value="pcs" ${l.unit==="pcs"?"selected":""}>pcs</option></select></div>
       <div><input data-k="packets" type="number" step="1" value="${esc(l.packets)}" placeholder="Packets" /></div>
       <div><input data-k="packetG" type="number" step="any" value="${esc(l.packetG)}" placeholder="Packet g" /></div>
       <div><select data-k="channel"><option value="auto" ${l.channel==="auto"?"selected":""}>Auto: ${lineChannel(o, { ...l, channel: "auto" }).toUpperCase()}</option><option value="b2b" ${l.channel==="b2b"?"selected":""}>B2B</option><option value="b2c" ${l.channel==="b2c"?"selected":""}>B2C</option></select></div>
       <button class="btn tiny" data-delline="${i}" type="button">✕</button></div>`;
   form1.innerHTML = `<h2>${state.orders.some(x => x.id === o.id) ? "Edit" : "New"} purchase order</h2>${banner}
-    <div class="row" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+    <div class="row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
       <div><div class="lbl">Customer</div><select id="poParty"><option value="">Select</option>${parties.map(p => `<option value="${p.id}" ${p.id===o.partyId?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div><div class="lbl">Outlet / branch</div><select id="poOutlet"><option value="">None</option>${(partyOf(o.partyId).locations || []).concat(o.outlet && !(partyOf(o.partyId).locations || []).includes(o.outlet) ? [o.outlet] : []).map(l => `<option ${l === o.outlet ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
       <div><div class="lbl">PO number</div><input id="poNo" value="${esc(o.poNo)}" /></div>
       <div><div class="lbl">PO date</div><input id="poDate" type="date" value="${o.date}" /></div>
       <div><div class="lbl">Delivery date</div><input id="poDeliver" type="date" value="${o.deliveryDate}" /></div>
@@ -4714,7 +4745,7 @@ function paintOrders() {
     <div class="lbl">Note</div><input id="poNote" value="${esc(o.note || "")}" />
     <div class="actions"><button class="btn primary" id="poSave" type="button">Save order</button><button class="btn ghost" id="poNew" type="button">Clear</button></div>`;
   const pull = () => {
-    o.partyId = document.getElementById("poParty").value; o.poNo = document.getElementById("poNo").value.trim();
+    o.partyId = document.getElementById("poParty").value; o.outlet = document.getElementById("poOutlet").value; o.poNo = document.getElementById("poNo").value.trim();
     o.date = document.getElementById("poDate").value; o.deliveryDate = document.getElementById("poDeliver").value; o.note = document.getElementById("poNote").value.trim();
     form1.querySelectorAll("[data-line]").forEach(row => { const l = o.lines[Number(row.dataset.line)]; row.querySelectorAll("[data-k]").forEach(el => { l[el.dataset.k] = el.value; }); });
   };
@@ -4766,7 +4797,7 @@ function paintOrders() {
   const bRows = byp.map(x => { const k = x.name.toLowerCase(), r = planDraft.by[k], tot = x.b2b + x.b2c; return `<div class="row" data-b="${esc(k)}" style="grid-template-columns:1fr 1.3fr .7fr .7fr .7fr auto;align-items:end;margin-top:6px;">
       <div><div class="lbl">Product</div><input value="${esc(x.name)}" readonly /></div>
       <div><div class="lbl">Vendor</div><select data-k="vendorId">${vend(r.vendorId)}</select></div>
-      <div><div class="lbl">Kg to buy <span class="hint">ordered ${r2(tot)}</span></div><input data-k="kg" type="number" step="any" value="${esc(r.kg)}" /></div>
+      <div><div class="lbl">${unitOf(x.name) === "pcs" ? "Pieces" : "Kg"} to buy <span class="hint">ordered ${r2(tot)}</span></div><input data-k="kg" type="number" step="any" value="${esc(r.kg)}" /></div>
       <div><div class="lbl">Buy rate</div><input data-k="buy" type="number" step="any" value="${esc(r.buy)}" /></div>
       <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${r.pay!=="cash"?"selected":""}>Credit</option><option value="cash" ${r.pay==="cash"?"selected":""}>Cash</option></select></div>
       <div class="hint">B2B ${r2(x.b2b)} · B2C ${r2(x.b2c)}</div></div>`; }).join("");
@@ -4794,25 +4825,26 @@ function paintOrders() {
   /* ---- order list ---- */
   const sorted = (state.orders || []).slice().sort((a, b) => String(b.deliveryDate).localeCompare(String(a.deliveryDate)) || String(b.date).localeCompare(String(a.date)));
   list.innerHTML = `<h2>Purchase orders <span class="hint">${sorted.length}</span></h2>
-    <table><thead><tr><th>PO</th><th>Customer</th><th>Delivery</th><th>Items</th><th>Status</th><th></th></tr></thead><tbody>${sorted.map(x => {
+    <table><thead><tr><th>PO</th><th>Customer / outlet</th><th>Delivery</th><th>Items</th><th>Status</th><th></th></tr></thead><tbody>${sorted.map(x => {
       const chs = Array.from(new Set((x.lines || []).map(l => lineChannel(x, l))));
       const items = (x.lines || []).map(l => esc(l.name) + " " + (n(l.packets) ? num(l.packets) + "×" + num(l.packetG) + "g" : num(l.qty) + (l.unit || "kg")) + " (" + lineChannel(x, l).toUpperCase() + ")").join(", ");
-      return `<tr><td>${esc(x.poNo || "-")}<br><span class="hint">${esc(x.date)}</span></td><td>${esc(partyOf(x.partyId).name)}</td><td>${esc(x.deliveryDate)}</td><td>${items}</td>
+      return `<tr><td>${esc(x.poNo || "-")}<br><span class="hint">${esc(x.date)}</span></td><td>${esc(partyOf(x.partyId).name)}${x.outlet ? `<br><span class="hint">${esc(x.outlet)}</span>` : ""}</td><td>${esc(x.deliveryDate)}</td><td>${items}</td>
         <td><select data-status="${x.id}"><option value="open" ${x.status==="open"?"selected":""}>Open</option><option value="delivered" ${x.status==="delivered"?"selected":""}>Delivered</option><option value="cancelled" ${x.status==="cancelled"?"selected":""}>Cancelled</option></select></td>
         <td>${chs.map(c => `<button class="btn tiny" data-mkinv="${x.id}|${c}">${c.toUpperCase()} invoice</button>`).join(" ")} <button class="btn tiny" data-editpo="${x.id}">Edit</button> <button class="btn tiny" data-delpo="${x.id}">Delete</button></td></tr>`; }).join("") || `<tr><td colspan="6">No orders yet.</td></tr>`}</tbody></table>`;
   list.querySelectorAll("[data-status]").forEach(s => s.onchange = () => { const x = state.orders.find(v => v.id === s.dataset.status); if (x) { x.status = s.value; persist(); paintOrders(); } });
   list.querySelectorAll("[data-editpo]").forEach(b => b.onclick = () => { orderDraft = structuredClone(state.orders.find(v => v.id === b.dataset.editpo)); paintOrders(); window.scrollTo(0, 0); });
   list.querySelectorAll("[data-delpo]").forEach(b => b.onclick = () => { if (!confirm("Delete this order?")) return; state.orders = state.orders.filter(v => v.id !== b.dataset.delpo); persist(); paintOrders(); });
   list.querySelectorAll("[data-mkinv]").forEach(b => b.onclick = () => { const [id, ch] = b.dataset.mkinv.split("|"); invoiceFromOrder(state.orders.find(v => v.id === id), ch); });
+  paintIndent();
 }
 function invoiceFromOrder(order, ch) {
   if (!order) return;
   const d = blankInvoice(); d.channel = ch; d.partyId = order.partyId; d.po = order.poNo || ""; d.date = order.deliveryDate || today();
-  const p = partyOf(order.partyId); if (p.ship) d.ship = p.ship;
+  const p = partyOf(order.partyId); if (order.outlet) d.ship = order.outlet; else if (p.ship) d.ship = p.ship;
   d.items = (order.lines || []).filter(l => lineChannel(order, l) === ch).map(l => {
     const found = rateForProduct(order.partyId, l.name, ch) || {};
     const base = { name: l.name, hsn: found.hsn || "", rate: l.rate !== "" && l.rate != null ? l.rate : (found.rate || "") };
-    return (ch === "b2c" || n(l.packets)) ? Object.assign(base, { packets: l.packets, packetG: l.packetG }) : Object.assign(base, { qty: l.qty, unit: l.unit === "g" ? "g" : "kg" });
+    return (ch === "b2c" || n(l.packets)) ? Object.assign(base, { packets: l.packets, packetG: l.packetG }) : Object.assign(base, { qty: l.qty, unit: l.unit === "g" ? "g" : (l.unit === "pcs" ? "pcs" : "kg") });
   });
   draft = d; openTab("invoice");
 }
@@ -4826,7 +4858,7 @@ function setDayPurchase(channel, date, match, make, qty, buy, pay, name, vendorI
     if (line) { line.src = "order"; line.vendorId = vendorId; }
   }
   if (!line) { line = make(); day.purchases.push(line); }
-  line.qty = qty; line.unit = "kg"; if (buy !== "" && buy != null) line.buy = buy; line.pay = pay;
+  line.qty = qty; line.unit = name ? unitOf(name) : "kg"; if (buy !== "" && buy != null) line.buy = buy; line.pay = pay;
   return day;
 }
 function applyPlan(date, meatB2b, meatB2c, byp) {
@@ -4884,14 +4916,555 @@ function applyPlan(date, meatB2b, meatB2c, byp) {
   paintOrders();
 }
 
+/* ================= Reading documents (photo, scan, Excel, CSV) ================= */
+function unitOf(name) {
+  const k = String(name || "").trim().toLowerCase(), m = state.productUnits || {};
+  if (m[k] === "pcs" || m[k] === "kg") return m[k];
+  const pk = productKey(name);
+  return (pk === "brain" || pk === "paya") ? "pcs" : "kg";
+}
+function knownProductNames() {
+  const names = (state.products || []).map(p => typeof p === "string" ? p : p && p.name).filter(Boolean);
+  ["b2b", "b2c"].forEach(ch => { const st = ch === "b2c" ? state.daysB2C : state.days; Object.values(st || {}).forEach(d => (d.purchases || []).forEach(p => { if (p.name) names.push(p.name); })); });
+  (state.customerRates || []).forEach(r => { if (r.name) names.push(r.name); });
+  return Array.from(new Set(names.map(x => String(x).trim()).filter(Boolean)));
+}
+function titleCase(s) { return String(s || "").trim().toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase()); }
+function cleanProductName(raw) {
+  return String(raw || "").replace(/\d+(\.\d+)?\s*(to|-)\s*\d+(\.\d+)?\s*kg/gi, " ").replace(/\b\d+\s*nos?\b\.?/gi, " ").replace(/\bpc\b/gi, " ")
+    .replace(/\b(mutton|goat)\b\s*\/?/gi, " ").replace(/[\/_-]+/g, " ").replace(/\bwhole\b/gi, " ").replace(/\s+kg\b/gi, " ").replace(/\s+/g, " ").trim();
+}
+function canonProduct(raw) {
+  const rawKey = String(raw || "").trim().toLowerCase();
+  const map = state.nameMap || {};
+  if (map[rawKey]) return map[rawKey];
+  const cleaned = cleanProductName(raw), low = cleaned.toLowerCase();
+  const known = knownProductNames();
+  if (/carcass/i.test(raw) || /carcass/.test(low)) {
+    const hit = known.find(x => /carcass/i.test(x) && !/_g\d/i.test(x));
+    return hit || "Mutton carcass";
+  }
+  const pk = productKey(raw);
+  if (pk) { const hit = known.find(x => productKey(x) === pk && !/carc/i.test(x)); if (hit) return hit; }
+  const exact = known.find(x => productNorm(x) === productNorm(cleaned) || productNorm(x) === productNorm(raw));
+  return exact || titleCase(cleaned || raw);
+}
+function csvGrid(text) {
+  const rows = []; let row = [], cell = "", q = false; const src = String(text || "").replace(/^﻿/, "");
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (q) { if (c === '"' && src[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+    else if (c === '"') q = true; else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; } else if (c !== "\r") cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(x => String(x).trim())).filter(r => r.some(x => x));
+}
+async function xlsxGrid(buf) {
+  const stringsXml = await unzipXml(buf, "xl/sharedStrings.xml").catch(() => "");
+  const strings = [...stringsXml.matchAll(/<si[\s\S]*?<\/si>/g)].map(m => xmlText(m[0]));
+  const sheet = await unzipXml(buf, "xl/worksheets/sheet1.xml");
+  return [...sheet.matchAll(/<row[\s\S]*?<\/row>/g)].map(row => {
+    const cells = [];
+    [...row[0].matchAll(/<c([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].forEach(c => {
+      const attrs = c[1] || "", body = c[2] || "";
+      const ref = (attrs.match(/r="([A-Z]+)/) || [])[1] || "";
+      const col = ref.split("").reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+      const type = (attrs.match(/t="([^"]+)"/) || [])[1] || "";
+      const v = (body.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+      let val = v == null ? "" : v;
+      if (type === "s") val = strings[Number(v)] || ""; else if (type === "inlineStr") val = xmlText((body.match(/<is>[\s\S]*?<\/is>/) || [""])[0]);
+      if (col >= 0) cells[col] = val;
+    });
+    return Array.from(cells, x => x == null ? "" : String(x).trim());
+  }).filter(r => r.some(x => x));
+}
+async function gridFromFile(file) {
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".csv") || name.endsWith(".txt")) return csvGrid(await file.text());
+  if (name.endsWith(".xlsx")) return xlsxGrid(await file.arrayBuffer());
+  return null;
+}
+const isNumCell = v => String(v).trim() !== "" && Number.isFinite(Number(String(v).replace(/,/g, "")));
+function indentFromGrid(grid) {
+  const skip = /^(column labels|row labels|sum of|count of|average of|grand total|total)/i;
+  for (let r = 0; r < Math.min(10, grid.length - 1); r++) {
+    const cols = [];
+    (grid[r] || []).forEach((c, i) => { if (i >= 1 && String(c).trim() && !isNumCell(c) && !skip.test(String(c).trim())) cols.push(i); });
+    if (!cols.length) continue;
+    const below = grid.slice(r + 1);
+    if (!below.some(row => cols.some(i => isNumCell(row[i])))) continue;
+    const items = [];
+    for (const row of below) {
+      const name = String(row[0] || "").trim();
+      if (/^(grand total|total)\b/i.test(name)) break;
+      if (!name) continue;
+      const qty = {}; let any = false;
+      cols.forEach(i => { const v = Number(String(row[i] || "").replace(/,/g, "")); if (Number.isFinite(v) && v > 0) { qty[String(grid[r][i]).trim()] = v; any = true; } });
+      if (any || cols.some(i => isNumCell(row[i]))) items.push({ name, qty });
+    }
+    if (items.length) return { branches: cols.map(i => String(grid[r][i]).trim()), items };
+  }
+  return null;
+}
+function imageForAI(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error("Could not open that image."));
+    fr.onload = () => {
+      const url = String(fr.result), raw = { media_type: (url.match(/^data:([^;]+)/) || [])[1] || "image/jpeg", data: url.split(",")[1] || "" };
+      const img = new Image();
+      img.onerror = () => resolve(raw);
+      img.onload = () => {
+        try {
+          const max = 1700, sc = Math.min(1, max / Math.max(img.width, img.height));
+          const cv = document.createElement("canvas"); cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+          const cx = cv.getContext("2d"); if (!cx) return resolve(raw);
+          cx.drawImage(img, 0, 0, cv.width, cv.height);
+          resolve({ media_type: "image/jpeg", data: cv.toDataURL("image/jpeg", 0.85).split(",")[1] });
+        } catch (e) { resolve(raw); }
+      };
+      setTimeout(() => resolve(raw), 4000);   // some browsers never fire load or error for odd formats
+      img.src = url;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function readDocument(kind, opts) {
+  const body = { kind, hint: knownProductNames().concat((state.vendors || []).map(v => v.name), (state.parties || []).map(p => p.name)).join(", ").slice(0, 1800) };
+  if (opts.grid) body.text = opts.grid.map(r => r.join("\t")).join("\n");
+  if (opts.file) body.image = await imageForAI(opts.file);
+  const res = await sbFetch("/functions/v1/read-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (res.status === 404) throw new Error("Reading photos is not switched on yet. Deploy the read-document function (see the setup note). You can still use Enter manually, or upload an Excel/CSV indent.");
+  let j = {}; try { j = await res.json(); } catch (e) {}
+  if (!res.ok || !j.ok) throw new Error(j.error || j.message || ("Could not read the file (error " + res.status + ")."));
+  return j.data;
+}
+const EXP_CATS = ["Driver", "Labour", "Salary", "Transport", "Slaughter slip", "Offal", "Other"];
+const NUM = v => { const x = Number(String(v == null ? "" : v).replace(/,/g, "")); return Number.isFinite(x) ? x : 0; };
+const matchByName = (list, name) => { const k = String(name || "").trim().toLowerCase(); if (!k) return null; return (list || []).find(x => String(x.name || "").toLowerCase() === k) || (list || []).find(x => { const a = String(x.name || "").toLowerCase(); return a && (a.includes(k) || k.includes(a)); }) || null; };
+
+/* ================= Vendor slip: upload, confirm, apply ================= */
+function blankSlip() {
+  return { date: "", vendorId: "", opening: "", carcass: [{ name: "Mutton carcass", kg: "", rate: "", pay: "credit", b2c: "", mix: false }], notes: [], by: [], offal: "", exp: [], shareB2c: "", shareAuto: true, source: "" };
+}
+function slipFromData(d) {
+  const s = blankSlip(); d = d || {};
+  s.date = normalizeDate(d.date) || ""; const v = matchByName(state.vendors, d.vendor); s.vendorId = v ? v.id : "";
+  s.opening = d.openingBalance != null ? String(d.openingBalance) : "";
+  const car = (d.carcass || []).filter(c => NUM(c.kg));
+  if (car.length) s.carcass = car.map(c => ({ name: canonProduct(c.name || "Mutton carcass"), kg: String(NUM(c.kg)), rate: c.rate != null ? String(NUM(c.rate)) : "", pay: "credit", b2c: "", mix: false }));
+  s.notes = (d.b2cNotes || []).filter(x => NUM(x.kg)).map(x => ({ label: String(x.label || "Note"), kg: NUM(x.kg) }));
+  const b2c = r2(s.notes.reduce((a, x) => a + x.kg, 0)); if (b2c && s.carcass.length) s.carcass[0].b2c = String(b2c);
+  s.by = (d.byproducts || []).filter(b => NUM(b.qty) || NUM(b.amount)).map(b => {
+    const name = canonProduct(b.name), unit = /pc|piece|nos/i.test(b.unit || "") ? "pcs" : (b.unit && /kg/i.test(b.unit) ? "kg" : unitOf(name));
+    const vid = vendorFor(name);
+    return { name, unit, qty: String(NUM(b.qty)), amount: String(NUM(b.amount)), b2c: "", pay: "credit", splits: [{ vendorId: vid, qty: String(NUM(b.qty)), amount: String(NUM(b.amount)), auto: true }] };
+  });
+  s.offal = d.offal != null && NUM(d.offal) ? String(NUM(d.offal)) : "";
+  const cats = state.expenseCats || {};
+  s.exp = (d.expenses || []).filter(e => NUM(e.amount)).map(e => ({ name: String(e.name || "").trim(), amount: String(NUM(e.amount)), cat: cats[String(e.name || "").trim().toLowerCase()] || "" }));
+  return s;
+}
+function vendorBroughtForward(vendorId, date) {
+  const v = (state.vendors || []).find(x => x.id === vendorId); if (!v) return null;
+  syncVendorPurchases();
+  return vendorPos(v, date ? addDays(date, -1) : "").closing;
+}
+function slipTotals(s) {
+  const kg = s.carcass.reduce((a, c) => a + NUM(c.kg), 0), b2c = s.carcass.reduce((a, c) => a + NUM(c.b2c), 0);
+  return { kg, b2c, share: kg ? b2c / kg : 0 };
+}
+function slipErrors(s) {
+  const e = [];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s.date)) e.push("Enter the date of the slip.");
+  s.carcass.forEach(c => {
+    if (!NUM(c.kg)) return;
+    if (!s.vendorId) e.push("Choose the carcass vendor.");
+    if (!NUM(c.rate)) e.push("Enter the rate for " + (c.name || "carcass") + ".");
+    if (NUM(c.b2c) > NUM(c.kg) + 0.0001) e.push("B2C kg is more than the carcass kg for " + c.name + ".");
+  });
+  if (!s.carcass.some(c => NUM(c.kg)) && !s.by.some(b => NUM(b.qty)) && !NUM(s.offal) && !s.exp.length) e.push("The slip has nothing to apply.");
+  s.by.forEach(b => {
+    if (!NUM(b.qty)) return;
+    if (NUM(b.b2c) > NUM(b.qty) + 0.0001) e.push("B2C quantity is more than the total for " + b.name + ".");
+    const q = r2(b.splits.reduce((a, x) => a + NUM(x.qty), 0)), a = r2(b.splits.reduce((x, y) => x + NUM(y.amount), 0));
+    if (Math.abs(q - NUM(b.qty)) > 0.01) e.push(b.name + ": vendor quantities add up to " + q + " but the slip says " + NUM(b.qty) + ".");
+    if (Math.abs(a - NUM(b.amount)) > 0.5) e.push(b.name + ": vendor amounts add up to ₹" + a + " but the slip says ₹" + NUM(b.amount) + ".");
+    if (b.splits.some(x => (NUM(x.qty) || NUM(x.amount)) && !x.vendorId)) e.push("Choose the vendor for every " + b.name + " row.");
+  });
+  s.exp.forEach(x => { if (NUM(x.amount) && !x.cat) e.push("Choose a category for " + (x.name || "expense") + ".") });
+  return e;
+}
+function slipDay(ch, date) {
+  const store = ch === "b2c" ? state.daysB2C : state.days;
+  if (!store[date]) { const d = blank(); d.date = date; d.channel = ch; store[date] = d; }
+  const d = store[date]; d.purchases = d.purchases || []; d.transport = d.transport || []; d.drivers = d.drivers || []; d.expLines = d.expLines || [];
+  return d;
+}
+function splitAmount(total, shareB2c) { const c = r2(total * shareB2c); return { b2c: c, b2b: r2(total - c) }; }
+function applySlip(s) {
+  if (!perm("write")) { alert("Your login cannot make entries."); return false; }
+  const errs = slipErrors(s); if (errs.length) { alert(errs.join("\n")); return false; }
+  { const u = currentUser(); if (u && u.role === "entry" && s.date !== today()) { alert("Entry logins can apply a slip only for today's date."); return false; } }
+  const date = s.date, T = slipTotals(s), share = s.shareAuto || s.shareB2c === "" ? T.share : Math.min(1, Math.max(0, NUM(s.shareB2c) / 100));
+  const days = { b2b: slipDay("b2b", date), b2c: slipDay("b2c", date) };
+  /* 1. carcass */
+  const byVendor = {};
+  s.carcass.filter(c => NUM(c.kg)).forEach(c => {
+    const b2c = r2(NUM(c.b2c)), b2b = r2(NUM(c.kg) - b2c);
+    ["b2b", "b2c"].forEach(ch => {
+      const q = ch === "b2c" ? b2c : b2b, day = days[ch], nm = String(c.name || "Mutton carcass").trim();
+      let line = day.purchases.find(p => isCarcassLine(p) && p.vendorId === s.vendorId && String(p.name || "").toLowerCase() === nm.toLowerCase());
+      if (!line) line = day.purchases.find(p => isCarcassLine(p) && !p.vendorId && !n(p.qty) && String(p.name || "").toLowerCase() === nm.toLowerCase());
+      if (!line) line = day.purchases.find(p => isCarcassLine(p) && !n(p.qty) && !n(p.buy) && !p.src);
+      if (!line) { if (q <= 0) return; line = { name: nm, qty: "", buy: "", sell: "", costing: true, pay: "credit", vendorId: s.vendorId }; day.purchases.unshift(line); }
+      line.name = nm; line.costing = true; line.vendorId = s.vendorId; line.qty = String(q); line.unit = "kg"; line.buy = String(NUM(c.rate)); line.pay = c.pay === "cash" ? "cash" : "credit"; line.src = "slip";
+      if (c.mix) line.mix = true; else delete line.mix;
+    });
+    const v = byVendor[s.vendorId] || (byVendor[s.vendorId] = { total: 0, b2b: 0, b2c: 0 });
+    v.total = r2(v.total + NUM(c.kg)); v.b2b = r2(v.b2b + b2b); v.b2c = r2(v.b2c + b2c);
+  });
+  Object.entries(byVendor).forEach(([vendorId, v]) => {
+    const split = splitRows(date); const keep = split.filter(x => x.vendorId && x.vendorId !== vendorId && (x.total || x.b2b || x.b2c));
+    splitStore()[date] = keep.concat([{ vendorId, total: String(v.total), b2b: String(v.b2b), b2c: String(v.b2c), saved: true }]);
+  });
+  /* 2. by-products: drop earlier lines from this slip and empty starter rows of the same product, then add one line per vendor and book */
+  const names = new Set(s.by.filter(b => NUM(b.qty)).map(b => String(b.name).toLowerCase()));
+  ["b2b", "b2c"].forEach(ch => { const d = days[ch]; d.purchases = d.purchases.filter(p => !(p.src === "slip" && !isCarcassLine(p)) && !(names.has(String(p.name || "").toLowerCase()) && !isCarcassLine(p) && !n(p.qty) && !n(p.buy))); });
+  s.by.filter(b => NUM(b.qty)).forEach(b => {
+    const total = NUM(b.qty), c = Math.min(total, NUM(b.b2c));
+    b.splits.filter(x => NUM(x.qty) || NUM(x.amount)).forEach(x => {
+      const q = NUM(x.qty), amt = NUM(x.amount), rate = q ? amt / q : 0;
+      const qc = total ? r2(q * c / total) : 0, qb = r2(q - qc);
+      [["b2b", qb], ["b2c", qc]].forEach(([ch, qq]) => {
+        if (qq <= 0) return;
+        days[ch].purchases.push({ name: b.name, qty: String(qq), unit: b.unit === "pcs" ? "pcs" : "kg", buy: String(Math.round(rate * 1e6) / 1e6), sell: "", pay: b.pay === "cash" ? "cash" : "credit", vendorId: x.vendorId, src: "slip" });
+      });
+    });
+  });
+  /* 3. offal and expenses, shared between B2B and B2C by carcass kg (editable) */
+  const prev = {};
+  ["b2b", "b2c"].forEach(ch => {
+    const d = days[ch], p = d.slipApplied || { sl: 0, other: 0, offal: 0 };
+    d.slValue = String(Math.max(0, n(d.slValue) - p.sl) || ""); d.other = String(Math.max(0, n(d.other) - p.other) || ""); d.offalValue = String(Math.max(0, n(d.offalValue) - p.offal) || "");
+    d.transport = d.transport.filter(x => x.src !== "slip"); d.drivers = d.drivers.filter(x => x.src !== "slip"); d.expLines = d.expLines.filter(x => x.src !== "slip");
+    d.slipApplied = { sl: 0, other: 0, offal: 0 };
+  });
+  const sh = { b2b: 1 - share, b2c: share };
+  const add = (ch, key, amt) => { const d = days[ch]; d.slipApplied[key] = r2(d.slipApplied[key] + amt); };
+  const offalAmt = NUM(s.offal);
+  if (offalAmt) { const sp = splitAmount(offalAmt, share); ["b2b", "b2c"].forEach(ch => { const a = sp[ch]; if (a) { days[ch].offalValue = String(r2(n(days[ch].offalValue) + a)); add(ch, "offal", a); } }); }
+  s.exp.filter(x => NUM(x.amount)).forEach(x => {
+    const sp = splitAmount(NUM(x.amount), share);
+    ["b2b", "b2c"].forEach(ch => {
+      const a = sp[ch]; if (!a) return; const d = days[ch];
+      d.expLines.push({ name: x.name, cat: x.cat, amount: a, src: "slip" });
+      if (x.cat === "Driver") d.drivers.push({ name: x.name, amount: String(a), src: "slip" });
+      else if (x.cat === "Transport") d.transport.push({ name: x.name, amount: String(a), src: "slip" });
+      else if (x.cat === "Slaughter slip") { d.slValue = String(r2(n(d.slValue) + a)); add(ch, "sl", a); }
+      else if (x.cat === "Offal") { d.offalValue = String(r2(n(d.offalValue) + a)); add(ch, "offal", a); }
+      else { d.other = String(r2(n(d.other) + a)); add(ch, "other", a); }
+    });
+  });
+  state.expenseCats = state.expenseCats || {}; s.exp.forEach(x => { if (x.name && x.cat) state.expenseCats[x.name.toLowerCase()] = x.cat; });
+  ["b2b", "b2c"].forEach(ch => { applyByproductSellRates(Object.assign(days[ch], { channel: ch, date })); });
+  if (form.date === date) { const ch = form.channel || "b2b"; const day = dayFor(date, ch); form.purchases = (day.purchases || []).map(x => ({ ...x })); try { fillForm(); } catch (e) {} }
+  persist();
+  return true;
+}
+let slipDraft = null;
+function paintUpload() {
+  const box = document.getElementById("uploadCard"); if (!box) return;
+  const sw = document.getElementById("chSwitch");
+  if (sw) sw.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.ch === (state.uploadChannel === "b2c" ? "b2c" : "b2b")));
+  const s = slipDraft, vend = id => `<option value="">Select vendor</option>` + (state.vendors || []).map(v => `<option value="${v.id}" ${v.id === id ? "selected" : ""}>${esc(v.name)}</option>`).join("");
+  let h = `<h2>Upload vendor slip <span class="hint">Photo, scan, Excel or CSV</span></h2>
+    <p class="note">Upload the slip, check what was read, split it between B2B and B2C, then apply. Nothing is saved until you press Apply. Or use Enter manually below.</p>
+    <div class="row" style="grid-template-columns:1fr auto;align-items:end;"><div><input id="slipFile" type="file" accept="image/*,.xlsx,.csv,text/csv" /></div><div><button class="btn primary" id="slipRead" type="button">Read slip</button></div></div>`;
+  if (s) {
+    const T = slipTotals(s), share = s.shareAuto || s.shareB2c === "" ? T.share : NUM(s.shareB2c) / 100, errs = slipErrors(s);
+    const bf = s.vendorId ? vendorBroughtForward(s.vendorId, s.date) : null, open = NUM(s.opening);
+    const check = s.opening === "" ? "" : (bf == null ? `<span class="hint">Choose the vendor to check the opening balance.</span>`
+      : (Math.abs(bf - open) < 0.5 ? `<span class="pos">✔ Opening balance ₹${num(open)} matches the Vendors page.</span>`
+        : `<div class="banner">Opening balance differs. Slip: ₹${num(open)} · Vendors page: ₹${num(bf)} · Difference: ₹${num(Math.abs(open - bf))} (slip is ${open > bf ? "higher" : "lower"}). Check the Vendors page or the slip before applying.</div>`));
+    h += `<div class="sec">1. Date and vendor</div>
+      <div class="row" style="grid-template-columns:160px 1fr 1fr;align-items:end;">
+        <div><div class="lbl">Slip date</div><input data-s="date" type="date" value="${esc(s.date)}" /></div>
+        <div><div class="lbl">Carcass vendor</div><select data-s="vendorId">${vend(s.vendorId)}</select></div>
+        <div><div class="lbl">Opening balance on slip</div><input data-s="opening" type="number" step="any" value="${esc(s.opening)}" /></div>
+      </div><div style="margin:6px 0;">${check}</div>
+      <div class="sec">2. Carcass <span class="hint">B2C kg is the part sold to B2C (for example the boxed Swiggy weight)</span></div>
+      ${s.notes.length ? `<div class="hint">Boxed on the slip: ${s.notes.map(x => esc(x.label) + " " + x.kg + " kg").join(", ")}</div>` : ""}
+      ${s.carcass.map((c, i) => `<div class="row" data-c="${i}" style="grid-template-columns:1.2fr .7fr .7fr .8fr .7fr .8fr .6fr auto;align-items:end;margin-top:6px;">
+        <div><div class="lbl">Product</div><input data-k="name" value="${esc(c.name)}" /></div>
+        <div><div class="lbl">Total kg</div><input data-k="kg" type="number" step="any" value="${esc(c.kg)}" /></div>
+        <div><div class="lbl">Rate / kg</div><input data-k="rate" type="number" step="any" value="${esc(c.rate)}" /></div>
+        <div><div class="lbl">Amount</div><input value="${r2(NUM(c.kg) * NUM(c.rate))}" readonly /></div>
+        <div><div class="lbl">B2C kg</div><input data-k="b2c" type="number" step="any" value="${esc(c.b2c)}" /></div>
+        <div><div class="lbl">B2B kg</div><input value="${r2(NUM(c.kg) - NUM(c.b2c))}" readonly /></div>
+        <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${c.pay !== "cash" ? "selected" : ""}>Credit</option><option value="cash" ${c.pay === "cash" ? "selected" : ""}>Cash</option></select></div>
+        <div><div class="lbl">Mix</div><input data-k="mix" type="checkbox" ${c.mix ? "checked" : ""} style="width:auto" /></div></div>`).join("")}
+      <div class="actions"><button class="btn tiny" id="slipAddCarcass" type="button">+ Add carcass product</button></div>
+      <div class="sec">3. By-products <span class="hint">Buy from one or more vendors. The vendor rows must add up to the slip total.</span></div>
+      ${s.by.map((b, i) => { const q = r2(b.splits.reduce((a, x) => a + NUM(x.qty), 0)), a = r2(b.splits.reduce((x, y) => x + NUM(y.amount), 0)), okv = Math.abs(q - NUM(b.qty)) <= 0.01 && Math.abs(a - NUM(b.amount)) <= 0.5;
+        return `<div data-b="${i}" style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-top:8px;">
+        <div class="row" style="grid-template-columns:1.2fr .6fr .7fr .8fr .7fr .8fr .7fr auto;align-items:end;">
+          <div><div class="lbl">Product</div><input data-k="name" value="${esc(b.name)}" /></div>
+          <div><div class="lbl">Unit</div><select data-k="unit"><option value="kg" ${b.unit !== "pcs" ? "selected" : ""}>kg</option><option value="pcs" ${b.unit === "pcs" ? "selected" : ""}>pcs</option></select></div>
+          <div><div class="lbl">Total qty</div><input data-k="qty" type="number" step="any" value="${esc(b.qty)}" /></div>
+          <div><div class="lbl">Total amount</div><input data-k="amount" type="number" step="any" value="${esc(b.amount)}" /></div>
+          <div><div class="lbl">B2C qty</div><input data-k="b2c" type="number" step="any" value="${esc(b.b2c)}" /></div>
+          <div><div class="lbl">B2B qty</div><input value="${r2(NUM(b.qty) - NUM(b.b2c))}" readonly /></div>
+          <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${b.pay !== "cash" ? "selected" : ""}>Credit</option><option value="cash" ${b.pay === "cash" ? "selected" : ""}>Cash</option></select></div>
+          <button class="btn tiny" data-delby="${i}" type="button">✕</button></div>
+        ${b.splits.map((x, j) => `<div class="row" data-sp="${i}|${j}" style="grid-template-columns:1.4fr .7fr .8fr auto;align-items:end;margin-top:4px;">
+          <div><div class="lbl">Bought from</div><select data-k="vendorId">${vend(x.vendorId)}</select></div>
+          <div><div class="lbl">Qty (${b.unit})</div><input data-k="qty" type="number" step="any" value="${esc(x.qty)}" /></div>
+          <div><div class="lbl">Amount</div><input data-k="amount" type="number" step="any" value="${esc(x.amount)}" /></div>
+          <button class="btn tiny" data-delsp="${i}|${j}" type="button">✕</button></div>`).join("")}
+        <div class="actions"><button class="btn tiny" data-addsp="${i}" type="button">+ Another vendor</button> <span class="${okv ? "pos" : "neg"}">${okv ? "✔ Vendor rows add up" : "Vendor rows add up to " + q + " " + b.unit + " / ₹" + a + " (slip: " + NUM(b.qty) + " / ₹" + NUM(b.amount) + ")"}</span></div></div>`; }).join("") || `<p class="note">No by-products on this slip.</p>`}
+      <div class="actions"><button class="btn tiny" id="slipAddBy" type="button">+ Add by-product</button></div>
+      <div class="sec">4. Offal (Sauda) and expenses</div>
+      <div class="row" style="grid-template-columns:200px 1fr;align-items:end;"><div><div class="lbl">Offal value (Sauda)</div><input data-s="offal" type="number" step="any" value="${esc(s.offal)}" /></div>
+        <div class="hint">Offal and all expenses are shared between B2B and B2C by carcass kg.</div></div>
+      <div class="row" style="grid-template-columns:200px 1fr;align-items:end;margin-top:6px;"><div><div class="lbl">B2C share % <span class="hint">auto ${r2(T.share * 100)}%</span></div><input data-s="shareB2c" type="number" step="any" value="${s.shareAuto || s.shareB2c === "" ? r2(T.share * 100) : esc(s.shareB2c)}" /></div><div></div></div>
+      ${s.exp.map((x, i) => `<div class="row" data-e="${i}" style="grid-template-columns:1.4fr .8fr 1fr auto;align-items:end;margin-top:4px;">
+        <div><div class="lbl">Name (as on slip)</div><input data-k="name" value="${esc(x.name)}" /></div>
+        <div><div class="lbl">Amount</div><input data-k="amount" type="number" step="any" value="${esc(x.amount)}" /></div>
+        <div><div class="lbl">Category</div><select data-k="cat" style="${x.cat ? "" : "border-color:#8b1e3f;"}"><option value="">Choose…</option>${EXP_CATS.map(c => `<option ${x.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+        <button class="btn tiny" data-delexp="${i}" type="button">✕</button></div>`).join("")}
+      <div class="actions"><button class="btn tiny" id="slipAddExp" type="button">+ Add expense</button></div>
+      ${errs.length ? `<div class="banner" style="margin-top:10px;">${errs.map(esc).join("<br>")}</div>` : ""}
+      <div class="actions sticky-actions"><button class="btn primary" id="slipApply" type="button">Apply to B2B and B2C</button><button class="btn ghost" id="slipCancel" type="button">Discard</button></div>
+      <p class="note">Apply writes the carcass and by-product purchases, offal and expenses into the B2B and B2C days for ${esc(s.date || "the date")}. Applying again for the same slip updates the same lines and never duplicates them. Credit purchases are added to each vendor's dues.</p>`;
+  }
+  box.innerHTML = h;
+  document.getElementById("slipRead").onclick = async () => {
+    const f = document.getElementById("slipFile").files[0]; if (!f) { alert("Choose the slip photo or file first."); return; }
+    const btn = document.getElementById("slipRead"); btn.disabled = true; btn.textContent = "Reading…";
+    try {
+      const grid = await gridFromFile(f);
+      const data = await readDocument("slip", grid ? { grid } : { file: f });
+      slipDraft = slipFromData(data); slipDraft.source = f.name; toast("Slip read. Check every figure, then apply.");
+    } catch (e) { alert(e.message || "Could not read the slip."); }
+    paintUpload();
+  };
+  if (!s) return;
+  const pullS = () => {
+    box.querySelectorAll("[data-s]").forEach(el => { const k = el.dataset.s; if (k === "shareB2c") { if (el.value !== String(r2(slipTotals(s).share * 100)) && el.value !== String(s.shareB2c)) { s.shareAuto = false; } s.shareB2c = el.value; } else s[k] = el.value; });
+    box.querySelectorAll("[data-c]").forEach(row => { const c = s.carcass[Number(row.dataset.c)]; row.querySelectorAll("[data-k]").forEach(el => { c[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value; }); });
+    box.querySelectorAll("[data-b]").forEach(row => { const b = s.by[Number(row.dataset.b)]; Array.from(row.children).slice(0, 1).forEach(top => top.querySelectorAll("[data-k]").forEach(el => { const old = b[el.dataset.k]; b[el.dataset.k] = el.value; if ((el.dataset.k === "qty" || el.dataset.k === "amount") && old !== el.value && b.splits.length === 1 && b.splits[0].auto) b.splits[0][el.dataset.k] = el.value; })); });
+    box.querySelectorAll("[data-sp]").forEach(row => { const [i, j] = row.dataset.sp.split("|").map(Number), x = s.by[i].splits[j]; row.querySelectorAll("[data-k]").forEach(el => { if (x[el.dataset.k] !== el.value) { x[el.dataset.k] = el.value; if (el.dataset.k !== "vendorId") x.auto = false; } }); });
+    box.querySelectorAll("[data-e]").forEach(row => { const x = s.exp[Number(row.dataset.e)]; row.querySelectorAll("[data-k]").forEach(el => { x[el.dataset.k] = el.value; }); });
+  };
+  box.querySelectorAll("[data-s], [data-c] [data-k], [data-b] [data-k], [data-sp] [data-k], [data-e] [data-k]").forEach(el => el.onchange = () => { pullS(); if (el.dataset.k === "name") { const row = el.closest("[data-b]"); if (row && !el.closest("[data-sp]")) { const b = s.by[Number(row.dataset.b)]; b.name = canonProduct(b.name); b.unit = unitOf(b.name); } } paintUpload(); });
+  document.getElementById("slipAddCarcass").onclick = () => { pullS(); const last = s.carcass[s.carcass.length - 1] || {}; s.carcass.push({ name: "Mutton carcass_G2", kg: "", rate: "", pay: last.pay || "credit", b2c: "", mix: !!last.mix }); paintUpload(); };
+  document.getElementById("slipAddBy").onclick = () => { pullS(); s.by.push({ name: "", unit: "kg", qty: "", amount: "", b2c: "", pay: "credit", splits: [{ vendorId: "", qty: "", amount: "", auto: true }] }); paintUpload(); };
+  document.getElementById("slipAddExp").onclick = () => { pullS(); s.exp.push({ name: "", amount: "", cat: "" }); paintUpload(); };
+  box.querySelectorAll("[data-delby]").forEach(b => b.onclick = () => { pullS(); s.by.splice(Number(b.dataset.delby), 1); paintUpload(); });
+  box.querySelectorAll("[data-addsp]").forEach(b => b.onclick = () => { pullS(); const bb = s.by[Number(b.dataset.addsp)]; bb.splits.forEach(x => { x.auto = false; }); bb.splits.push({ vendorId: "", qty: "", amount: "", auto: false }); paintUpload(); });
+  box.querySelectorAll("[data-delsp]").forEach(b => b.onclick = () => { pullS(); const [i, j] = b.dataset.delsp.split("|").map(Number); s.by[i].splits.splice(j, 1); if (!s.by[i].splits.length) s.by[i].splits.push({ vendorId: "", qty: "", amount: "", auto: false }); paintUpload(); });
+  box.querySelectorAll("[data-delexp]").forEach(b => b.onclick = () => { pullS(); s.exp.splice(Number(b.dataset.delexp), 1); paintUpload(); });
+  document.getElementById("slipCancel").onclick = () => { slipDraft = null; paintUpload(); };
+  document.getElementById("slipApply").onclick = () => { pullS(); if (applySlip(s)) { toast("Applied to the B2B and B2C days for " + s.date + "."); slipDraft = null; paintUpload(); } };
+}
+
+/* ================= Summary (B2B + B2C) ================= */
+function sumSpan() {
+  const mode = state.sumMode || "daily", date = state.sumDate || today();
+  return { mode, date, ...rangeBounds(mode, date, state.sumFrom, state.sumTo) };
+}
+function aggDays(days) {
+  const a = { days: days.length, carcassKg: 0, invoiceKg: 0, lossKg: 0, landing: 0, offal: 0, byProd: 0, sales: 0, exp: 0, pnl: 0, net: 0, cuNum: 0, cats: {} };
+  const cat = (name, amt) => { if (!amt) return; const c = a.cats[name] || (a.cats[name] = { total: 0, names: {} }); c.total += amt; };
+  days.forEach(d => {
+    const r = compute(d), lines = d.expLines || [];
+    a.carcassKg += r.costingWt; a.invoiceKg += r.invoiceWt; a.lossKg += r.lossWt; a.landing += r.landing; a.offal += r.affles; a.byProd += r.productSales;
+    a.sales += r.invoiceRev; a.exp += r.expenditure; a.pnl += r.pnl; a.net += r.netCash; a.cuNum += r.costingUnit * r.costingWt;
+    const sumCat = c => lines.filter(x => x.cat === c).reduce((s, x) => s + n(x.amount), 0);
+    cat("Slaughter slip", r.slaughter); cat("Transport", r.transport); cat("Driver", r.drivers);
+    cat("Salary", r.salaries + sumCat("Salary")); cat("Labour", sumCat("Labour")); cat("Other", r.other - sumCat("Salary") - sumCat("Labour")); cat("Weight loss (not cash)", r.lossValue);
+    lines.forEach(x => { const key = x.cat === "Offal" ? null : x.cat; if (!key) return; const tgt = a.cats[key]; if (tgt) tgt.names[x.name] = (tgt.names[x.name] || 0) + n(x.amount); });
+    (d.drivers || []).forEach(x => { if (x.src !== "slip" && n(x.amount)) { const t = a.cats.Driver; if (t) t.names[x.name || "Driver"] = (t.names[x.name || "Driver"] || 0) + n(x.amount); } });
+    (d.transport || []).forEach(x => { if (x.src !== "slip" && n(x.amount)) { const t = a.cats.Transport; if (t) t.names[x.name || "Transport"] = (t.names[x.name || "Transport"] || 0) + n(x.amount); } });
+  });
+  a.cu = a.carcassKg ? a.cuNum / a.carcassKg : 0; a.sell = a.invoiceKg ? a.sales / a.invoiceKg : 0; a.pnlKg = a.invoiceKg ? a.pnl / a.invoiceKg : 0;
+  return a;
+}
+function mergeAgg(x, y) {
+  const m = aggDays([]); ["days", "carcassKg", "invoiceKg", "lossKg", "landing", "offal", "byProd", "sales", "exp", "pnl", "net", "cuNum"].forEach(k => { m[k] = x[k] + y[k]; });
+  [x, y].forEach(a => Object.entries(a.cats).forEach(([k, c]) => { const t = m.cats[k] || (m.cats[k] = { total: 0, names: {} }); t.total += c.total; Object.entries(c.names).forEach(([nm, v]) => { t.names[nm] = (t.names[nm] || 0) + v; }); }));
+  m.cu = m.carcassKg ? m.cuNum / m.carcassKg : 0; m.sell = m.invoiceKg ? m.sales / m.invoiceKg : 0; m.pnlKg = m.invoiceKg ? m.pnl / m.invoiceKg : 0;
+  return m;
+}
+function summaryData(span) {
+  const all = sortedDays().filter(d => d.date >= span.from && d.date <= span.to);
+  const b2b = aggDays(all.filter(d => d.channel === "b2b")), b2c = aggDays(all.filter(d => d.channel === "b2c"));
+  return { b2b, b2c, all: mergeAgg(b2b, b2c) };
+}
+function summaryHTML(span) {
+  const S = summaryData(span), cols = [["B2B", S.b2b], ["B2C", S.b2c], ["Combined", S.all]];
+  const pn = v => `<span class="${v >= 0 ? "pos" : "neg"}">${money(v)}</span>`;
+  const rows = [
+    ["Days with data", a => a.days, x => x], ["Carcass bought (kg)", a => a.carcassKg, x => num(x)], ["Invoice weight (kg)", a => a.invoiceKg, x => num(x)], ["Weight loss (kg)", a => a.lossKg, x => num(x)],
+    ["Landing cost", a => a.landing, money], ["Offal", a => a.offal, money], ["By-product sales", a => a.byProd, money], ["Expenditure", a => a.exp, money],
+    ["Costing per kg", a => a.cu, money], ["Invoice sales", a => a.sales, money], ["Average sell per kg", a => a.sell, money],
+    ["Profit / loss", a => a.pnl, pn], ["Profit / loss per kg", a => a.pnlKg, pn], ["Net cash", a => a.net, pn]
+  ];
+  const catNames = Array.from(new Set(cols.flatMap(([, a]) => Object.keys(a.cats)))), order = ["Slaughter slip", "Transport", "Driver", "Salary", "Labour", "Other", "Weight loss (not cash)"];
+  catNames.sort((p, q) => order.indexOf(p) - order.indexOf(q));
+  const detail = (a, c) => { const t = a.cats[c]; if (!t) return ""; const nm = Object.entries(t.names).filter(([, v]) => v); return nm.length ? `<div class="hint">${nm.map(([k, v]) => esc(k) + " " + money(v)).join(" · ")}</div>` : ""; };
+  return `<div class="kpis" style="margin-bottom:12px;">${kpi("B2B profit / loss", money(S.b2b.pnl), S.b2b.pnl >= 0 ? "pos" : "neg")}${kpi("B2C profit / loss", money(S.b2c.pnl), S.b2c.pnl >= 0 ? "pos" : "neg")}${kpi("Combined", money(S.all.pnl), S.all.pnl >= 0 ? "pos" : "neg")}${kpi("Net cash", money(S.all.net), S.all.net >= 0 ? "pos" : "neg")}</div>
+    <table class="nice"><thead><tr><th>${esc(span.from === span.to ? span.from : span.from + " to " + span.to)}</th>${cols.map(([t]) => `<th class="num">${t}</th>`).join("")}</tr></thead><tbody>
+    ${rows.map(([label, get, fmt]) => `<tr><td>${label}</td>${cols.map(([, a]) => `<td class="num">${fmt(get(a))}</td>`).join("")}</tr>`).join("")}</tbody></table>
+    <div class="sec">Expenses by category</div>
+    ${catNames.length ? `<table class="nice"><thead><tr><th>Category</th>${cols.map(([t]) => `<th class="num">${t}</th>`).join("")}</tr></thead><tbody>${catNames.map(c => `<tr><td>${esc(c)}${detail(S.all, c)}</td>${cols.map(([, a]) => `<td class="num">${a.cats[c] ? money(a.cats[c].total) : "—"}</td>`).join("")}</tr>`).join("")}<tr class="total"><td>Expenditure</td>${cols.map(([, a]) => `<td class="num">${money(a.exp)}</td>`).join("")}</tr></tbody></table>` : `<p class="note">No expenses in this period.</p>`}
+    <p class="note">Costing per kg = (landing − offal + expenses, including valued weight loss) ÷ carcass kg. Combined costing per kg weighs each book by its carcass kg. These are the same calculations as the day pages.</p>`;
+}
+function paintSummary() {
+  const card = document.getElementById("summaryCard"); if (!card) return;
+  if (!state.sumDate) state.sumDate = today();
+  const sp = sumSpan();
+  card.innerHTML = `<h2>Summary <span class="hint">B2B and B2C</span></h2>
+    <div class="filters" style="margin-bottom:10px;">
+      <div><div class="lbl">Range</div><select id="sumMode"><option value="daily">One day</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="fy">Financial year</option><option value="custom">Custom dates</option></select></div>
+      <div><div class="lbl">${sp.mode === "custom" ? "From" : "Date"}</div><input id="sumDate" type="date" value="${sp.mode === "custom" ? sp.from : sp.date}" /></div>
+      ${sp.mode === "custom" ? `<div><div class="lbl">To</div><input id="sumTo" type="date" value="${sp.to}" /></div>` : ""}
+      <div><div class="lbl">&nbsp;</div><button class="btn tiny" id="sumPrint" type="button">Print / PDF</button></div></div>
+    <div id="sumBody">${summaryHTML(sp)}</div>`;
+  document.getElementById("sumMode").value = sp.mode;
+  document.getElementById("sumMode").onchange = e => { state.sumMode = e.target.value; if (e.target.value === "custom") { state.sumFrom = sp.from; state.sumTo = sp.to; } paintSummary(); };
+  document.getElementById("sumDate").onchange = e => { if (sp.mode === "custom") state.sumFrom = e.target.value; else state.sumDate = e.target.value; paintSummary(); };
+  const to = document.getElementById("sumTo"); if (to) to.onchange = e => { state.sumTo = e.target.value; paintSummary(); };
+  document.getElementById("sumPrint").onclick = () => pdfExport("Summary " + sp.from + " to " + sp.to, document.getElementById("sumBody").innerHTML);
+}
+function ordersReportData(span) {
+  const orders = (state.orders || []).filter(o => o.status !== "cancelled" && o.deliveryDate >= span.from && o.deliveryDate <= span.to);
+  const rows = []; orders.forEach(o => (o.lines || []).forEach(l => { const q = n(l.qty) || orderLineKg(l); if (!l.name || !q) return; rows.push({ date: o.deliveryDate, customer: partyOf(o.partyId).name, outlet: o.outlet || "", product: l.name, qty: q, unit: l.unit || "kg", ch: lineChannel(o, l).toUpperCase(), byp: isByproductName(l.name) }); }));
+  const ordered = {}, bought = {}; let meatOrdered = 0, carcassBought = 0;
+  rows.forEach(r => { if (r.byp) ordered[r.product.toLowerCase()] = (ordered[r.product.toLowerCase()] || 0) + r.qty; else meatOrdered += r.qty; });
+  sortedDays().filter(d => d.date >= span.from && d.date <= span.to).forEach(d => (d.purchases || []).forEach(p => { const q = toKg(p.qty, p.unit || "kg"); if (isCarcassLine(p)) carcassBought += q; else if (n(q)) bought[String(p.name || "").toLowerCase()] = (bought[String(p.name || "").toLowerCase()] || 0) + q; }));
+  const names = Array.from(new Set(Object.keys(ordered).concat(Object.keys(bought).filter(k => ordered[k]))));
+  return { rows, tally: [{ name: "Carcass (meat orders vs carcass bought)", ordered: r2(meatOrdered), bought: r2(carcassBought), unit: "kg" }].concat(names.map(k => ({ name: titleCase(k), ordered: r2(ordered[k] || 0), bought: r2(bought[k] || 0), unit: unitOf(k) }))) };
+}
+function ordersReportHTML(span) {
+  const D = ordersReportData(span);
+  return `<table class="nice"><thead><tr><th>Ordered against bought</th><th class="num">Ordered</th><th class="num">Bought</th><th class="num">Difference</th></tr></thead><tbody>${D.tally.map(t => `<tr><td>${esc(t.name)}</td><td class="num">${t.ordered} ${t.unit}</td><td class="num">${t.bought} ${t.unit}</td><td class="num"><span class="${t.bought - t.ordered >= 0 ? "pos" : "neg"}">${r2(t.bought - t.ordered)}</span></td></tr>`).join("")}</tbody></table>
+    <div class="sec">Orders by outlet</div>
+    <table><thead><tr><th>Delivery</th><th>Customer</th><th>Outlet</th><th>Product</th><th class="num">Qty</th><th>Book</th></tr></thead><tbody>${D.rows.map(r => `<tr><td>${r.date}</td><td>${esc(r.customer)}</td><td>${esc(r.outlet || "—")}</td><td>${esc(r.product)}</td><td class="num">${num(r.qty)} ${r.unit}</td><td>${r.ch}</td></tr>`).join("") || `<tr><td colspan="6">No orders in this period.</td></tr>`}</tbody></table>`;
+}
+/* ================= Customer indent upload (Orders page) ================= */
+let indentDraft = null;
+function indentFromData(d, customerId) {
+  const party = partyOf(customerId), locs = party.locations || [];
+  const branches = (d.branches || []).map(b => String(b).trim()).filter(Boolean);
+  const outletFor = b => { const k = b.toLowerCase(); return locs.find(l => l.toLowerCase() === k) || locs.find(l => l.toLowerCase().includes(k) || k.includes(l.toLowerCase())) || ""; };
+  return {
+    customerId, deliveryDate: "", poNo: "", branches: branches.map(b => ({ name: b, outlet: outletFor(b) || b, isNew: !outletFor(b) })),
+    items: (d.items || []).filter(it => it && it.name).map(it => { const name = canonProduct(it.name); return { raw: String(it.name), name, unit: unitOf(name), qty: Object.fromEntries(branches.map(b => [b, it.qty && it.qty[b] != null && NUM(it.qty[b]) ? String(NUM(it.qty[b])) : ""])) }; })
+  };
+}
+function paintIndent() {
+  const box = document.getElementById("indentCard"); if (!box) return;
+  const d = indentDraft, parties = state.parties || [];
+  let h = `<h2>Upload customer indent <span class="hint">Excel, CSV, photo or scan</span></h2>
+    <p class="note">For a table of products by branch. Pick the customer, upload the file, check the table, enter the delivery date, then confirm. Each branch becomes its own order.</p>
+    <div class="row" style="grid-template-columns:1fr 1.4fr auto;align-items:end;">
+      <div><div class="lbl">Customer</div><select id="indCust"><option value="">Select customer</option>${parties.map(p => `<option value="${p.id}" ${d && d.customerId === p.id ? "selected" : (!d && state.indentCustomer === p.id ? "selected" : "")}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div><div class="lbl">File</div><input id="indFile" type="file" accept="image/*,.xlsx,.csv,text/csv" /></div>
+      <div><button class="btn primary" id="indRead" type="button">Read indent</button></div></div>`;
+  if (d) {
+    const party = partyOf(d.customerId), locs = party.locations || [];
+    const tot = b => r2(d.items.reduce((s, it) => s + NUM(it.qty[b.name]), 0));
+    h += `<div class="sec">Check the indent</div>
+      <div class="row" style="grid-template-columns:200px 1fr;align-items:end;"><div><div class="lbl">Delivery date (required)</div><input id="indDate" type="date" value="${esc(d.deliveryDate)}" /></div><div class="hint">Customer: ${esc(party.name)} · ${(party.books || ["b2b"]).map(x => x.toUpperCase()).join(" / ")}. Orders follow the customer's book.</div></div>
+      <div style="overflow:auto;margin-top:8px;"><table class="nice"><thead><tr><th>Product</th><th>Unit</th>${d.branches.map((b, j) => `<th><div class="hint">Branch</div><input data-bn="${j}" value="${esc(b.name)}" style="min-width:110px" /><div class="hint">Outlet</div><input data-bo="${j}" list="indLocs" value="${esc(b.outlet)}" style="min-width:110px" /></th>`).join("")}<th></th></tr></thead>
+      <tbody>${d.items.map((it, i) => `<tr data-it="${i}"><td><input data-k="name" list="orderNames" value="${esc(it.name)}" style="min-width:170px" /><div class="hint">${esc(it.raw)}</div></td>
+        <td><select data-k="unit"><option value="kg" ${it.unit !== "pcs" ? "selected" : ""}>kg</option><option value="pcs" ${it.unit === "pcs" ? "selected" : ""}>pcs</option></select></td>
+        ${d.branches.map(b => `<td><input data-q="${esc(b.name)}" type="number" step="any" value="${esc(it.qty[b.name] || "")}" style="width:84px" /></td>`).join("")}
+        <td><button class="btn tiny" data-delit="${i}" type="button">✕</button></td></tr>`).join("")}
+      <tr class="total"><td>Total</td><td></td>${d.branches.map(b => `<td class="num">${tot(b)}</td>`).join("")}<td></td></tr></tbody></table></div>
+      <datalist id="indLocs">${locs.map(l => `<option value="${esc(l)}"></option>`).join("")}</datalist>
+      <p class="note">Outlets that are not yet on the customer's profile are added to it. Kg for meat and liver, pieces for brain and paya (change a unit here or in Products).</p>
+      <div class="actions"><button class="btn primary" id="indConfirm" type="button">Confirm and create orders</button><button class="btn ghost" id="indCancel" type="button">Discard</button></div>`;
+  }
+  box.innerHTML = h;
+  document.getElementById("indCust").onchange = e => { state.indentCustomer = e.target.value; if (indentDraft) indentDraft.customerId = e.target.value; };
+  document.getElementById("indRead").onclick = async () => {
+    const cid = document.getElementById("indCust").value, f = document.getElementById("indFile").files[0];
+    if (!cid) { alert("Select the customer first."); return; } if (!f) { alert("Choose the indent file or photo first."); return; }
+    const btn = document.getElementById("indRead"); btn.disabled = true; btn.textContent = "Reading…";
+    try {
+      const grid = await gridFromFile(f); let data = grid ? indentFromGrid(grid) : null;
+      if (!data) data = await readDocument("indent", grid ? { grid } : { file: f });
+      if (!data || !(data.items || []).length) throw new Error("No products and quantities were found in that file.");
+      indentDraft = indentFromData(data, cid); toast("Indent read. Check the table and enter the delivery date.");
+    } catch (e) { alert(e.message || "Could not read the indent."); }
+    paintIndent();
+  };
+  if (!d) return;
+  const pull = () => {
+    const dt = document.getElementById("indDate"); if (dt) d.deliveryDate = dt.value;
+    box.querySelectorAll("[data-bn]").forEach(el => { const b = d.branches[Number(el.dataset.bn)], old = b.name, nn = el.value.trim() || old; if (nn !== old) { d.items.forEach(it => { it.qty[nn] = it.qty[old]; delete it.qty[old]; }); b.name = nn; } });
+    box.querySelectorAll("[data-bo]").forEach(el => { d.branches[Number(el.dataset.bo)].outlet = el.value.trim(); });
+    box.querySelectorAll("[data-it]").forEach(row => { const it = d.items[Number(row.dataset.it)]; row.querySelectorAll("[data-k]").forEach(el => { if (el.dataset.k === "name" && el.value !== it.name) { it.name = el.value; it.unit = unitOf(it.name); } else if (el.dataset.k !== "name") it[el.dataset.k] = el.value; }); row.querySelectorAll("[data-q]").forEach(el => { it.qty[el.dataset.q] = el.value; }); });
+  };
+  box.querySelectorAll("[data-bn], [data-bo], [data-it] input, [data-it] select, #indDate").forEach(el => el.onchange = () => { pull(); paintIndent(); });
+  box.querySelectorAll("[data-delit]").forEach(b => b.onclick = () => { pull(); d.items.splice(Number(b.dataset.delit), 1); paintIndent(); });
+  document.getElementById("indCancel").onclick = () => { indentDraft = null; paintIndent(); };
+  document.getElementById("indConfirm").onclick = () => { pull(); if (confirmIndent(d)) { indentDraft = null; paintOrders(); } };
+}
+function confirmIndent(d) {
+  if (!perm("write")) { alert("Your login cannot make entries."); return false; }
+  if (!ordersReady) { alert("Orders are not set up in the database yet. Run supabase_orders.sql, then reload."); return false; }
+  if (!d.customerId) { alert("Select the customer."); return false; }
+  if (!d.deliveryDate) { alert("Enter the delivery date."); return false; }
+  const names = d.items.map(it => String(it.name || "").trim().toLowerCase()).filter(Boolean);
+  if (new Set(names).size !== names.length) { alert("The same product appears twice. Combine them into one row."); return false; }
+  const party = (state.parties || []).find(p => p.id === d.customerId); if (!party) { alert("Customer not found."); return false; }
+  const made = [];
+  d.branches.forEach(b => {
+    const lines = d.items.filter(it => String(it.name || "").trim() && NUM(it.qty[b.name]) > 0).map(it => ({ id: uid(), name: String(it.name).trim(), qty: String(NUM(it.qty[b.name])), unit: it.unit === "pcs" ? "pcs" : "kg", packets: "", packetG: "", channel: "auto", rate: "" }));
+    if (!lines.length) return;
+    const outlet = String(b.outlet || b.name).trim();
+    if (outlet && !(party.locations || []).some(l => l.toLowerCase() === outlet.toLowerCase())) { party.locations = (party.locations || []).concat(outlet); if (!party.ship) party.ship = outlet; }
+    const poNo = "IND-" + d.deliveryDate + "-" + outlet;
+    const order = { id: uid(), poNo, date: today(), deliveryDate: d.deliveryDate, partyId: party.id, outlet, status: "open", note: "Indent upload", lines };
+    const at = (state.orders || []).findIndex(x => x.partyId === party.id && x.poNo === poNo && x.deliveryDate === d.deliveryDate);
+    if (at >= 0) { order.id = state.orders[at].id; state.orders[at] = order; } else state.orders.push(order);
+    made.push(outlet);
+  });
+  if (!made.length) { alert("No quantities to save."); return false; }
+  state.nameMap = state.nameMap || {}; d.items.forEach(it => { if (it.raw && it.name) state.nameMap[String(it.raw).trim().toLowerCase()] = String(it.name).trim(); });
+  state.unitsSeen = null; state.productUnits = state.productUnits || {}; d.items.forEach(it => { if (it.name && it.unit !== unitOf(it.name)) state.productUnits[String(it.name).trim().toLowerCase()] = it.unit; });
+  state.orderPlanDate = d.deliveryDate; planDraft = { date: "", loss: planDraft.loss, carcass: null, by: null };
+  persist(); toast(made.length + " order(s) created: " + made.join(", ") + ".");
+  return true;
+}
+function paintProductUnits() {
+  const card = document.getElementById("productsCard"); if (!card) return;
+  let box = document.getElementById("productUnits"); if (box) box.remove();
+  box = document.createElement("div"); box.id = "productUnits";
+  const names = knownProductNames().sort((a, b) => a.localeCompare(b));
+  box.innerHTML = `<div class="sec">Units for orders and slips</div><p class="note">Brain and paya are counted in pieces. Everything else is in kg unless you change it here.</p>
+    <table class="nice"><thead><tr><th>Product</th><th>Unit</th></tr></thead><tbody>${names.map(nm => `<tr><td>${esc(nm)}</td><td><select data-unitfor="${esc(nm)}"><option value="kg" ${unitOf(nm) === "kg" ? "selected" : ""}>kg</option><option value="pcs" ${unitOf(nm) === "pcs" ? "selected" : ""}>pcs</option></select></td></tr>`).join("") || `<tr><td colspan="2">No products yet.</td></tr>`}</tbody></table>`;
+  card.appendChild(box);
+  box.querySelectorAll("[data-unitfor]").forEach(s => s.onchange = () => { state.productUnits = state.productUnits || {}; state.productUnits[s.dataset.unitfor.toLowerCase()] = s.value; persist(); toast("Unit saved."); });
+}
+
 window.openTab = function (tab) {
   try {
     if (tab && !allowed(tab)) return;
-    document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("on", x.dataset.tab === tab));
-    ["entry","report","orders","vendors","dues","customers","invoice","invoicelist","customer","history","cash","rates","products","users","company","inventory"].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
-    if (tab === "b2b" || tab === "b2c") { switchChannel(tab); document.getElementById("entry").classList.remove("hidden"); }
+    if (tab === "b2b" || tab === "b2c") { state.uploadChannel = tab; }
+    const navTab = (tab === "b2b" || tab === "b2c") ? "upload" : tab;
+    document.querySelectorAll(".nav button[data-tab]").forEach(x => x.classList.toggle("on", x.dataset.tab === navTab));
+    document.querySelectorAll(".nav .dd").forEach(d => { d.classList.remove("open"); const b = d.querySelector(".ddbtn"); if (b) b.classList.toggle("on", !!d.querySelector("button.on")); });
+    ["entry","summary","report","orders","vendors","dues","customers","invoice","invoicelist","customer","history","cash","rates","products","users","company","inventory"].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
+    if (tab === "b2b" || tab === "b2c" || tab === "upload") { const ch = tab === "upload" ? (state.uploadChannel === "b2c" ? "b2c" : "b2b") : tab; state.uploadChannel = ch; switchChannel(ch); document.getElementById("entry").classList.remove("hidden"); if (typeof paintUpload === "function") paintUpload(); }
     else { const page = document.getElementById(tab); if (page) page.classList.remove("hidden"); }
     const b = { dataset: { tab } };
+    if (b.dataset.tab==="summary") paintSummary();
     if (b.dataset.tab==="orders") paintOrders();
     if (b.dataset.tab==="vendors") paintVendors();
     if (b.dataset.tab==="dues") paintDues();
@@ -4903,6 +5476,7 @@ window.openTab = function (tab) {
     if (b.dataset.tab==="cash") paintCash();
     if (b.dataset.tab==="report") paintReports();
     if (b.dataset.tab==="rates" || b.dataset.tab==="products") paintProducts();
+    if (b.dataset.tab==="products") paintProductUnits();
     if (b.dataset.tab==="inventory") paintInventory();
     if (b.dataset.tab==="users") paintUsers();
     if (b.dataset.tab==="company") paintCompany();
@@ -5057,7 +5631,7 @@ document.getElementById("deleteDay").onclick = () => {
   delete dayStore()[form.date];
   persist();
   form = blank();
-  form.channel = document.querySelector(".nav button.on") && document.querySelector(".nav button.on").dataset.tab==="b2c" ? "b2c" : "b2b";
+  form.channel = curChannel();
   fillForm();
   toast("Day deleted.");
 };
@@ -5090,6 +5664,9 @@ applyBrandLogo();
 loadPublicBrand();
 updateEntryChrome();
 fillForm();
+document.querySelectorAll(".nav .ddbtn").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); const d = b.closest(".dd"), was = d.classList.contains("open"); document.querySelectorAll(".nav .dd").forEach(x => x.classList.remove("open")); if (!was) d.classList.add("open"); }));
+document.addEventListener("click", e => { if (!e.target.closest || !e.target.closest(".nav .dd")) document.querySelectorAll(".nav .dd").forEach(x => x.classList.remove("open")); });
+document.getElementById("chSwitch").querySelectorAll("button").forEach(b => b.onclick = () => { state.uploadChannel = b.dataset.ch; switchChannel(b.dataset.ch); });
 document.getElementById("menuBtn").onclick = () => document.getElementById("mainNav").classList.toggle("open");
 document.getElementById("askBtn").onclick = () => { const p = document.getElementById("askPanel"); p.classList.remove("mini"); p.classList.toggle("hidden"); };
 document.getElementById("askMin").onclick = () => document.getElementById("askPanel").classList.toggle("mini");
@@ -5098,7 +5675,7 @@ document.getElementById("askForm").onsubmit = e => { e.preventDefault(); const v
 document.getElementById("askPanel").classList.add("hidden");
 showAsk(!!currentUser());
 askSay("Ask me to open a page, today's profit, a customer rate, or invoices.");
-document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => { if (window.innerWidth < 901) document.getElementById("mainNav").classList.remove("open"); }));
+document.querySelectorAll(".nav button[data-tab]").forEach(b => b.addEventListener("click", () => { if (window.innerWidth < 901) document.getElementById("mainNav").classList.remove("open"); }));
 
 /* ---------- Permissions ---------- */
 function perm(k) { const u = currentUser(); if (!u) return false; return !!(ROLES[u.role] || ROLES.entry).perms[k]; }
@@ -5115,7 +5692,7 @@ function classify(el) {
   const txt = (el.textContent || "").trim();
   if (PERM_SETTINGS_ID.test(id) || ds.some(k => /^(saveuser|deluser|approve)$/.test(k)) || el.closest("#companyCard,#usersCard")) return "settings";
   if (PERM_DELETE_ID.test(id) || ds.some(k => /^del/.test(k)) || /^(Delete|Remove)\b/.test(txt)) return "delete";
-  if (PERM_READ_ID.test(id) || ds.some(k => /^(tab|open|openinv|pick|ch)$/.test(k))) return "read";
+  if (PERM_READ_ID.test(id) || ds.some(k => /^(tab|open|openinv|pick|ch|dd)$/.test(k))) return "read";
   return "write";
 }
 function denyReason(kind, el) {

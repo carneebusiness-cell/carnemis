@@ -28,6 +28,10 @@
   .nav .ddmenu button { text-align:left; border-radius:10px; width:100%; }
   .nav .ddmenu button.on { background:#efe6da; box-shadow:none; }
   .guide { background:#fffdf9; border:1px solid var(--line); border-radius:14px; padding:12px 14px; margin-bottom:14px; display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .modal-wrap { position:fixed; inset:0; z-index:500; background:rgba(28,23,18,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal-box { background:var(--card); border-radius:16px; padding:20px; width:min(520px,94vw); max-height:84vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+  .modal-title { font-weight:700; font-size:17px; margin-bottom:10px; }
+  .modal-msg { white-space:pre-wrap; line-height:1.5; margin-bottom:14px; }
   .toast { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); background:#1c1712; color:#fff; border-radius:14px; padding:16px 18px; z-index:200; box-shadow:var(--shadow); max-width:min(420px,90vw); text-align:center; }
   #loader { position:fixed; inset:0; z-index:180; display:none; place-items:center; background:rgba(17,17,17,.45); }
   #loader.on { display:grid; }
@@ -2620,7 +2624,7 @@ function paintReports() {
   const type = state.reportType || "daily";
   const mode = state.reportMode || "daily";
   const days = reportDays();
-  const title = { bothsummary: "B2B + B2C summary", ordersrep: "Orders: ordered and bought", daily: "Daily / period report", weight: "Weight loss or gain", item: "Item wise", purchases: "Carcass and by-product purchases", vendor: "Vendor purchases and payments", customer: "Customer wise", b2cwaste: "B2C purchases and wastage", pnl: "Profit and loss", balance: "Balance sheet", cashflow: "Cash flow statement" }[type];
+  const title = { conversion: "B2C conversion", invbyno: "Invoices by number", invbycust: "Invoices customer wise", uploadlog: "Upload error log", bothsummary: "B2B + B2C summary", ordersrep: "Orders: ordered and bought", daily: "Daily / period report", weight: "Weight loss or gain", item: "Item wise", purchases: "Carcass and by-product purchases", vendor: "Vendor purchases and payments", customer: "Customer wise", b2cwaste: "B2C purchases and wastage", pnl: "Profit and loss", balance: "Balance sheet", cashflow: "Cash flow statement" }[type];
   let body = "", csv = [];
   if (type === "daily") {
     const rows = days.map(d => { const r = compute(d); return { d, r }; });
@@ -2797,6 +2801,29 @@ function paintReports() {
   } else if (type === "bothsummary") {
     const sp = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo); body = summaryHTML(sp);
     const S = summaryData(sp); csv = [["Metric","B2B","B2C","Combined"]].concat([["Carcass kg","carcassKg"],["Invoice kg","invoiceKg"],["Weight loss kg","lossKg"],["Landing","landing"],["Offal","offal"],["By-product sales","byProd"],["Expenditure","exp"],["Costing per kg","cu"],["Invoice sales","sales"],["Profit loss","pnl"],["Net cash","net"]].map(([l,k]) => [l,S.b2b[k],S.b2c[k],S.all[k]]));
+  } else if (type === "conversion") {
+    const sp = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo); body = conversionHTML(sp) || `<p class="note">No conversion data in this period. Link products under Products, Conversions, and make B2C purchases and invoices.</p>`;
+    csv = [["Source","Cut","Kg","Sales","Cost","Profit"]]; convData(sp).forEach(R => R.cuts.forEach(c => csv.push([R.source, c.name, c.kg, c.rev, c.cost, c.rev - c.cost])));
+  } else if (type === "invbyno" || type === "invbycust") {
+    const sp = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo), chn = state.reportChannel || "all";
+    const invs = (state.taxInvoices || []).filter(i => i.date >= sp.from && i.date <= sp.to && (chn === "all" || (i.channel || "b2b") === chn));
+    const info = i => ({ no: String(i.number), date: i.date, cust: partyOf(i.partyId).name || "—", outlet: i.ship || "", book: (i.channel || "b2b").toUpperCase(), amt: invTotal(i), paid: invPaid(i) });
+    const tot = (list) => list.reduce((a, x) => ({ amt: a.amt + x.amt, paid: a.paid + x.paid }), { amt: 0, paid: 0 });
+    if (type === "invbyno") {
+      const rows = invs.map(info).sort((a, b) => a.no.localeCompare(b.no, undefined, { numeric: true })), t = tot(rows);
+      body = `<div class="kpis">${kpi("Invoices", rows.length)}${kpi("Amount", money(t.amt))}${kpi("Received", money(t.paid))}${kpi("Balance", money(t.amt - t.paid), t.amt - t.paid > 0 ? "neg" : "pos")}</div>
+        <table><thead><tr><th>Invoice no.</th><th>Date</th><th>Customer</th><th>Location</th><th>Book</th><th class="num">Amount</th><th class="num">Received</th><th class="num">Balance</th></tr></thead><tbody>${rows.map(x => `<tr><td>${esc(x.no)}</td><td>${x.date}</td><td>${esc(x.cust)}</td><td>${esc(x.outlet)}</td><td>${x.book}</td><td class="num">${money(x.amt)}</td><td class="num">${money(x.paid)}</td><td class="num">${money(x.amt - x.paid)}</td></tr>`).join("") || `<tr><td colspan="8">No invoices in this period.</td></tr>`}<tr class="total"><td colspan="5">Total</td><td class="num">${money(t.amt)}</td><td class="num">${money(t.paid)}</td><td class="num">${money(t.amt - t.paid)}</td></tr></tbody></table>`;
+      csv = [["Invoice no","Date","Customer","Location","Book","Amount","Received","Balance"]].concat(rows.map(x => [x.no, x.date, x.cust, x.outlet, x.book, x.amt, x.paid, x.amt - x.paid]));
+    } else {
+      const groups = {}; invs.map(info).forEach(x => { (groups[x.cust] = groups[x.cust] || []).push(x); });
+      const names = Object.keys(groups).sort((a, b) => a.localeCompare(b)), all = tot(invs.map(info));
+      body = `<div class="kpis">${kpi("Customers", names.length)}${kpi("Invoices", invs.length)}${kpi("Amount", money(all.amt))}${kpi("Balance", money(all.amt - all.paid), all.amt - all.paid > 0 ? "neg" : "pos")}</div>` + (names.map(nm => { const list = groups[nm].sort((a, b) => a.no.localeCompare(b.no, undefined, { numeric: true })), t = tot(list);
+        return `<div class="sec">${esc(nm)} <span class="hint">${list.length} invoice(s) · ${money(t.amt)}</span></div><table><thead><tr><th>Invoice no.</th><th>Date</th><th>Location</th><th>Book</th><th class="num">Amount</th><th class="num">Received</th><th class="num">Balance</th></tr></thead><tbody>${list.map(x => `<tr><td>${esc(x.no)}</td><td>${x.date}</td><td>${esc(x.outlet)}</td><td>${x.book}</td><td class="num">${money(x.amt)}</td><td class="num">${money(x.paid)}</td><td class="num">${money(x.amt - x.paid)}</td></tr>`).join("")}<tr class="total"><td colspan="4">Customer total</td><td class="num">${money(t.amt)}</td><td class="num">${money(t.paid)}</td><td class="num">${money(t.amt - t.paid)}</td></tr></tbody></table>`; }).join("") || `<p class="note">No invoices in this period.</p>`);
+      csv = [["Customer","Invoice no","Date","Location","Book","Amount","Received","Balance"]]; names.forEach(nm => groups[nm].forEach(x => csv.push([nm, x.no, x.date, x.outlet, x.book, x.amt, x.paid, x.amt - x.paid])));
+    }
+  } else if (type === "uploadlog") {
+    body = uploadLogHTML();
+    csv = [["When","Who","Upload","File","Type","Size","Step","What went wrong"]].concat((state.uploadLog || []).map(r => [r.at, r.user, r.kind, r.file, r.type, r.size, r.stage, r.message]));
   } else if (type === "ordersrep") {
     const sp = rangeBounds(mode, state.reportDate, state.reportFrom, state.reportTo); body = ordersReportHTML(sp);
     const D = ordersReportData(sp); csv = [["Delivery","Customer","Outlet","Product","Qty","Unit","Book"]].concat(D.rows.map(r => [r.date,r.customer,r.outlet,r.product,r.qty,r.unit,r.ch]));
@@ -2847,7 +2874,7 @@ function paintReports() {
   document.getElementById("reportCard").innerHTML = `<h2>Reports <span class="hint">${title}</span></h2>
     <div class="row" style="grid-template-columns:1fr 1fr 1fr;">
       <div><div class="lbl">Book</div><select id="repChannel"><option value="all">B2B and B2C</option><option value="b2b">B2B</option><option value="b2c">B2C</option></select></div>
-      <div><div class="lbl">Report</div><select id="repType"><option value="daily">Daily / period</option><option value="pnl">Profit and loss</option><option value="balance">Balance sheet</option><option value="cashflow">Cash flow statement</option><option value="weight">Weight loss or gain</option><option value="purchases">Carcass and by-products</option><option value="vendor">Vendor purchases and payments</option><option value="item">Item wise</option><option value="customer">Customer wise</option><option value="b2cwaste">B2C purchases and wastage</option><option value="bothsummary">B2B + B2C summary</option><option value="ordersrep">Orders: ordered and bought</option></select></div>
+      <div><div class="lbl">Report</div><select id="repType"><option value="daily">Daily / period</option><option value="pnl">Profit and loss</option><option value="balance">Balance sheet</option><option value="cashflow">Cash flow statement</option><option value="weight">Weight loss or gain</option><option value="purchases">Carcass and by-products</option><option value="vendor">Vendor purchases and payments</option><option value="item">Item wise</option><option value="customer">Customer wise</option><option value="b2cwaste">B2C purchases and wastage</option><option value="bothsummary">B2B + B2C summary</option><option value="conversion">B2C conversion (cuts and vendors)</option><option value="invbyno">Invoices by number</option><option value="invbycust">Invoices customer wise</option><option value="ordersrep">Orders: ordered and bought</option><option value="uploadlog">Upload error log</option></select></div>
       <div><div class="lbl">Range</div><select id="repMode"><option value="daily">One day</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="fy">Financial year</option><option value="custom">Custom dates</option></select></div>
     </div>
     <div class="row" style="grid-template-columns:1fr 1fr;margin-top:8px;">
@@ -2873,6 +2900,7 @@ function paintReports() {
       paintReports();
     };
   });
+  { const cl = document.getElementById("clearUploadLog"); if (cl) cl.onclick = () => { if (!perm("del")) { alert("Your login cannot delete. Ask the Owner or a Manager."); return; } if (!confirm("Clear the whole upload error log?")) return; state.uploadLog = []; persist(); paintReports(); }; }
   document.getElementById("repDownload").onclick = () => csvDownload("carne-" + type + "-report.csv", csv);
   document.getElementById("repExcel").onclick = () => excelDownload("carne-" + type + "-report", csv);
   document.getElementById("repPdf").onclick = () => pdfExport(title + " · CARNE", document.getElementById("reportBody").innerHTML);
@@ -2931,7 +2959,7 @@ function paintCarcassSplit() {
         <div><div class="lbl">Vendor</div><select data-k="vendorId" ${row.saved?"disabled":""}>${state.vendors.map(v=>`<option value="${v.id}" ${v.id===row.vendorId?"selected":""}>${esc(v.name)}</option>`).join("")}</select></div>
         <button class="btn tiny" data-editsplit="${i}" type="button">Edit</button>
         <button class="btn primary tiny" data-savesplit="${i}" type="button">Save</button>
-        <button class="btn tiny" data-delsplit="${i}" type="button">Remove</button>
+        <button class="btn tiny" data-rmsplit="${i}" type="button">Remove</button>
       </div>
       <div class="split-line" style="margin-top:8px;">
         <div><div class="lbl">Total kg</div><input data-k="total" type="text" inputmode="decimal" value="${esc(row.total)}" ${row.saved?"readonly":""} /></div>
@@ -2945,9 +2973,9 @@ function paintCarcassSplit() {
     <div class="actions"><button class="btn tiny" id="addSplitVendor" type="button">+ Add vendor</button></div>`;
   box.querySelectorAll("[data-editsplit]").forEach(b => b.onclick = () => { splitRows(date)[Number(b.dataset.editsplit)].saved = false; paintCarcassSplit(); });
   box.querySelectorAll("[data-savesplit]").forEach(b => b.onclick = () => saveCarcassSplit(Number(b.dataset.savesplit)));
-  box.querySelectorAll("[data-delsplit]").forEach(b => b.onclick = () => {
+  box.querySelectorAll("[data-rmsplit]").forEach(b => b.onclick = () => {
     const rows = splitRows(date);
-    const gone = rows.splice(Number(b.dataset.delsplit), 1)[0];
+    const gone = rows.splice(Number(b.dataset.rmsplit), 1)[0];
     if (gone && gone.vendorId) { setDayCarcassQty("b2b", date, gone.vendorId, ""); setDayCarcassQty("b2c", date, gone.vendorId, ""); }
     if (!rows.length) rows.push({ vendorId: "", total: "", b2b: "", b2c: "" });
     persist(); paintCarcassSplit();
@@ -4783,10 +4811,10 @@ function paintOrders() {
   byp.forEach(x => { const k = x.name.toLowerCase(); if (!planDraft.by[k]) planDraft.by[k] = { vendorId: vendorFor(x.name) || ((state.vendors || [])[0] || {}).id || "", kg: r2(x.b2b + x.b2c), buy: "", pay: "credit", auto: true }; if (planDraft.by[k].auto) planDraft.by[k].kg = r2(x.b2b + x.b2c); });
   const share = (tot, row) => { const d = meatB2b + meatB2c; const b = row.b2b !== "" && row.b2b != null ? n(row.b2b) : (d ? r2(tot * meatB2b / d) : 0); return { b2b: b, b2c: r2(tot - b) }; };
   const allocated = r2(planDraft.carcass.reduce((s, r) => s + n(r.total), 0));
-  const carcassNames = Array.from(new Set(["Mutton carcass"].concat((state.products || []).map(p => typeof p === "string" ? p : p && p.name).filter(x => /carc/i.test(x || "")), (state.vendors || []).flatMap(v => String(v.supplies || "").split(/[,;\n]+/).map(t => t.trim()).filter(t => /carc/i.test(t))))));
+  const carcassNames = (() => { const seen = new Set(), out = []; ["Mutton carcass", "Mutton carcass_G2"].concat((state.products || []).map(p => typeof p === "string" ? p : p && p.name), (state.vendors || []).flatMap(v => String(v.supplies || "").split(/[,;\n]+/))).map(x => String(x || "").trim()).filter(x => /carc/i.test(x)).map(x => /^carcass/i.test(x) ? "Mutton " + x.charAt(0).toLowerCase() + x.slice(1) : x).forEach(x => { const k = x.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(x); } }); return out; })();
   const cRows = planDraft.carcass.map((r, i) => { const s = share(n(r.total), r); return `<div class="row" data-c="${i}" style="grid-template-columns:1.1fr 1.1fr .65fr .65fr .65fr .65fr .7fr .45fr auto;align-items:end;margin-top:6px;">
       <div><div class="lbl">Vendor</div><select data-k="vendorId">${vend(r.vendorId)}</select></div>
-      <div><div class="lbl">Carcass product</div><input data-k="product" list="carcassNames" value="${esc(r.product)}" /></div>
+      <div><div class="lbl">Carcass product</div><select data-k="product">${(carcassNames.includes(r.product) ? carcassNames : carcassNames.concat(r.product)).map(x => `<option value="${esc(x)}" ${x === r.product ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div>
       <div><div class="lbl">Total kg</div><input data-k="total" type="number" step="any" value="${esc(r.total)}" /></div>
       <div><div class="lbl">B2B kg</div><input data-k="b2b" type="number" step="any" value="${r.b2b !== "" ? esc(r.b2b) : s.b2b}" /></div>
       <div><div class="lbl">B2C kg</div><input value="${s.b2c}" readonly /></div>
@@ -4806,7 +4834,7 @@ function paintOrders() {
     ${dem.length ? `<table><thead><tr><th>Product</th><th>Type</th><th class="num">B2B kg</th><th class="num">B2C kg</th><th class="num">Total kg</th></tr></thead><tbody>${dem.map(x => `<tr><td>${esc(x.name)}</td><td>${x.byp ? "By-product" : "Carcass meat"}</td><td class="num">${r2(x.b2b)}</td><td class="num">${r2(x.b2c)}</td><td class="num">${r2(x.b2b + x.b2c)}</td></tr>`).join("")}<tr><th>Total</th><th></th><th class="num">${r2(dem.reduce((s, x) => s + x.b2b, 0))}</th><th class="num">${r2(dem.reduce((s, x) => s + x.b2c, 0))}</th><th class="num">${r2(dem.reduce((s, x) => s + x.b2b + x.b2c, 0))}</th></tr></tbody></table>` : `<p class="note">No orders for this date yet.</p>`}
     <div class="sec">Carcass</div>
     <div class="row" style="grid-template-columns:160px 1fr;align-items:end;"><div><div class="lbl">Loss % to allow</div><input id="planLoss" type="number" step="any" value="${esc(planDraft.loss)}" /></div><div class="hint">Ordered meat ${r2(meatB2b + meatB2c)} kg → suggested carcass ${suggest} kg (ordered kg increased by the loss %). You can overwrite the kg.</div></div>
-    <datalist id="carcassNames">${carcassNames.map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist><div id="planCarcass">${cRows}</div><div class="hint" style="margin-top:6px;">Allocated ${allocated} kg of the suggested ${suggest} kg${Math.abs(allocated - suggest) > 0.05 ? " (difference " + r2(allocated - suggest) + " kg)" : ""}. Add one row per carcass product for each vendor, each with its own buy rate. Tick Mix on the products to cost together at one blended price.</div><div class="actions"><button class="btn tiny" id="planAddC" type="button">+ Add carcass product</button></div>
+    <datalist id="carcassNames">${carcassNames.map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist><div id="planCarcass">${cRows}</div><div class="hint" style="margin-top:6px;">Allocated ${allocated} kg of the suggested ${suggest} kg${Math.abs(allocated - suggest) > 0.05 ? " (difference " + r2(allocated - suggest) + " kg)" : ""}. Add one row per carcass product for each vendor, each with its own buy rate. Tick Mix on the products to cost together at one blended price.</div><div class="actions"><button class="btn tiny" id="planAddV" type="button">+ Add vendor (all carcass products)</button><button class="btn tiny" id="planAddC" type="button">+ Add one carcass product</button></div>
     <div class="sec">By-products</div>
     ${byp.length ? bRows : `<p class="note">No by-product orders for this date.</p>`}
     <p class="note">Apply writes these purchases into the B2B and B2C day entries for ${date}, and fills the carcass split. Applying again updates the same lines and never duplicates them. Carcass and by-product purchases on credit are added to the vendor's dues.</p>
@@ -4819,7 +4847,8 @@ function paintOrders() {
   document.getElementById("planDate").onchange = e => { state.orderPlanDate = e.target.value; planDraft = { date: "", loss: planDraft.loss, carcass: null, by: null }; paintOrders(); };
   document.getElementById("planLoss").onchange = () => { readPlan(); planDraft.carcass = null; paintOrders(); };
   plan.querySelectorAll("[data-c] [data-k=total], [data-c] [data-k=b2b], [data-c] [data-k=vendorId], [data-c] [data-k=product]").forEach(el => el.onchange = () => { readPlan(); paintOrders(); });
-  document.getElementById("planAddC").onclick = () => { readPlan(); const last = planDraft.carcass[planDraft.carcass.length - 1] || {}; planDraft.carcass.forEach(r => { r.auto = false; }); planDraft.carcass.push({ vendorId: last.vendorId || ((state.vendors || [])[0] || {}).id || "", product: "Mutton carcass_G2", total: "", b2b: "", buy: "", pay: last.pay || "credit", mix: !!last.mix, auto: false }); paintOrders(); };
+  document.getElementById("planAddC").onclick = () => { readPlan(); const last = planDraft.carcass[planDraft.carcass.length - 1] || {}; const vid = last.vendorId || ((state.vendors || [])[0] || {}).id || ""; const taken = planDraft.carcass.filter(r => r.vendorId === vid).map(r => String(r.product).toLowerCase()); const next = carcassNames.find(x => !taken.includes(x.toLowerCase())) || "Mutton carcass_G2"; planDraft.carcass.forEach(r => { r.auto = false; }); planDraft.carcass.push({ vendorId: vid, product: next, total: "", b2b: "", buy: "", pay: last.pay || "credit", mix: !!last.mix, auto: false }); paintOrders(); };
+  document.getElementById("planAddV").onclick = () => { readPlan(); const used = new Set(planDraft.carcass.map(r => r.vendorId)); const vend0 = (state.vendors || []).find(v => !used.has(v.id)) || (state.vendors || [])[0] || {}; const prods = Array.from(new Set(planDraft.carcass.map(r => r.product).concat(["Mutton carcass", "Mutton carcass_G2"]))); const last = planDraft.carcass[planDraft.carcass.length - 1] || {}; planDraft.carcass.forEach(r => { r.auto = false; }); prods.forEach(p => planDraft.carcass.push({ vendorId: vend0.id || "", product: p, total: "", b2b: "", buy: "", pay: last.pay || "credit", mix: !!last.mix, auto: false })); paintOrders(); };
   plan.querySelectorAll("[data-delc]").forEach(b => b.onclick = () => { readPlan(); planDraft.carcass.splice(Number(b.dataset.delc), 1); if (!planDraft.carcass.length) planDraft.carcass = null; paintOrders(); });
   document.getElementById("planApply").onclick = () => { readPlan(); applyPlan(date, meatB2b, meatB2c, byp); };
   /* ---- order list ---- */
@@ -4981,8 +5010,11 @@ async function xlsxGrid(buf) {
 }
 async function gridFromFile(file) {
   const name = String(file.name || "").toLowerCase();
-  if (name.endsWith(".csv") || name.endsWith(".txt")) return csvGrid(await file.text());
-  if (name.endsWith(".xlsx")) return xlsxGrid(await file.arrayBuffer());
+  try {
+    if (name.endsWith(".csv") || name.endsWith(".txt")) return csvGrid(await file.text());
+    if (name.endsWith(".xlsx")) return await xlsxGrid(await file.arrayBuffer());
+  } catch (e) { throw Object.assign(new Error("The file could not be opened: " + (e.message || "unknown problem") + ". Save it again as .xlsx or .csv and retry."), { stage: "opening the file" }); }
+  if (name.endsWith(".xls")) throw Object.assign(new Error("Old .xls files are not supported. Save the file as .xlsx or .csv and upload again."), { stage: "opening the file" });
   return null;
 }
 const isNumCell = v => String(v).trim() !== "" && Number.isFinite(Number(String(v).replace(/,/g, "")));
@@ -5034,10 +5066,10 @@ async function readDocument(kind, opts) {
   const body = { kind, hint: knownProductNames().concat((state.vendors || []).map(v => v.name), (state.parties || []).map(p => p.name)).join(", ").slice(0, 1800) };
   if (opts.grid) body.text = opts.grid.map(r => r.join("\t")).join("\n");
   if (opts.file) body.image = await imageForAI(opts.file);
-  const res = await sbFetch("/functions/v1/read-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (res.status === 404) throw new Error("Reading photos is not switched on yet. Deploy the read-document function (see the setup note). You can still use Enter manually, or upload an Excel/CSV indent.");
+  let res; try { res = await sbFetch("/functions/v1/read-document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); } catch (e) { throw Object.assign(new Error("Could not reach the photo reader (" + (e.message || "network error") + "). Check that the read-document function is deployed with Verify JWT off, and that you opened the app from book.carne.co.in."), { stage: "reaching the photo reader" }); }
+  if (res.status === 404) throw Object.assign(new Error("Reading photos is not switched on yet. Deploy the read-document function (see the setup note). You can still use Enter manually, or upload an Excel/CSV indent."), { stage: "photo reader not deployed" });
   let j = {}; try { j = await res.json(); } catch (e) {}
-  if (!res.ok || !j.ok) throw new Error(j.error || j.message || ("Could not read the file (error " + res.status + ")."));
+  if (!res.ok || !j.ok) throw Object.assign(new Error(j.error || j.message || ("Could not read the file (error " + res.status + ")")), { stage: "reading by AI (status " + res.status + ")" });
   return j.data;
 }
 const EXP_CATS = ["Driver", "Labour", "Salary", "Transport", "Slaughter slip", "Offal", "Other"];
@@ -5217,12 +5249,12 @@ function paintUpload() {
           <div><div class="lbl">B2C qty</div><input data-k="b2c" type="number" step="any" value="${esc(b.b2c)}" /></div>
           <div><div class="lbl">B2B qty</div><input value="${r2(NUM(b.qty) - NUM(b.b2c))}" readonly /></div>
           <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${b.pay !== "cash" ? "selected" : ""}>Credit</option><option value="cash" ${b.pay === "cash" ? "selected" : ""}>Cash</option></select></div>
-          <button class="btn tiny" data-delby="${i}" type="button">✕</button></div>
+          <button class="btn tiny" data-rmby="${i}" type="button">✕</button></div>
         ${b.splits.map((x, j) => `<div class="row" data-sp="${i}|${j}" style="grid-template-columns:1.4fr .7fr .8fr auto;align-items:end;margin-top:4px;">
           <div><div class="lbl">Bought from</div><select data-k="vendorId">${vend(x.vendorId)}</select></div>
           <div><div class="lbl">Qty (${b.unit})</div><input data-k="qty" type="number" step="any" value="${esc(x.qty)}" /></div>
           <div><div class="lbl">Amount</div><input data-k="amount" type="number" step="any" value="${esc(x.amount)}" /></div>
-          <button class="btn tiny" data-delsp="${i}|${j}" type="button">✕</button></div>`).join("")}
+          <button class="btn tiny" data-rmsp="${i}|${j}" type="button">✕</button></div>`).join("")}
         <div class="actions"><button class="btn tiny" data-addsp="${i}" type="button">+ Another vendor</button> <span class="${okv ? "pos" : "neg"}">${okv ? "✔ Vendor rows add up" : "Vendor rows add up to " + q + " " + b.unit + " / ₹" + a + " (slip: " + NUM(b.qty) + " / ₹" + NUM(b.amount) + ")"}</span></div></div>`; }).join("") || `<p class="note">No by-products on this slip.</p>`}
       <div class="actions"><button class="btn tiny" id="slipAddBy" type="button">+ Add by-product</button></div>
       <div class="sec">4. Offal (Sauda) and expenses</div>
@@ -5233,7 +5265,7 @@ function paintUpload() {
         <div><div class="lbl">Name (as on slip)</div><input data-k="name" value="${esc(x.name)}" /></div>
         <div><div class="lbl">Amount</div><input data-k="amount" type="number" step="any" value="${esc(x.amount)}" /></div>
         <div><div class="lbl">Category</div><select data-k="cat" style="${x.cat ? "" : "border-color:#8b1e3f;"}"><option value="">Choose…</option>${EXP_CATS.map(c => `<option ${x.cat === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
-        <button class="btn tiny" data-delexp="${i}" type="button">✕</button></div>`).join("")}
+        <button class="btn tiny" data-rmexp="${i}" type="button">✕</button></div>`).join("")}
       <div class="actions"><button class="btn tiny" id="slipAddExp" type="button">+ Add expense</button></div>
       ${errs.length ? `<div class="banner" style="margin-top:10px;">${errs.map(esc).join("<br>")}</div>` : ""}
       <div class="actions sticky-actions"><button class="btn primary" id="slipApply" type="button">Apply to B2B and B2C</button><button class="btn ghost" id="slipCancel" type="button">Discard</button></div>
@@ -5247,7 +5279,7 @@ function paintUpload() {
       const grid = await gridFromFile(f);
       const data = await readDocument("slip", grid ? { grid } : { file: f });
       slipDraft = slipFromData(data); slipDraft.source = f.name; toast("Slip read. Check every figure, then apply.");
-    } catch (e) { alert(e.message || "Could not read the slip."); }
+    } catch (e) { const msg = e.message || "Could not read the slip."; logUploadError("slip", f, e.stage || "reading the file", msg); alert("The slip could not be read.\n\n" + msg + "\n\nThis has been saved in Reports > Upload error log."); }
     paintUpload();
   };
   if (!s) return;
@@ -5262,10 +5294,10 @@ function paintUpload() {
   document.getElementById("slipAddCarcass").onclick = () => { pullS(); const last = s.carcass[s.carcass.length - 1] || {}; s.carcass.push({ name: "Mutton carcass_G2", kg: "", rate: "", pay: last.pay || "credit", b2c: "", mix: !!last.mix }); paintUpload(); };
   document.getElementById("slipAddBy").onclick = () => { pullS(); s.by.push({ name: "", unit: "kg", qty: "", amount: "", b2c: "", pay: "credit", splits: [{ vendorId: "", qty: "", amount: "", auto: true }] }); paintUpload(); };
   document.getElementById("slipAddExp").onclick = () => { pullS(); s.exp.push({ name: "", amount: "", cat: "" }); paintUpload(); };
-  box.querySelectorAll("[data-delby]").forEach(b => b.onclick = () => { pullS(); s.by.splice(Number(b.dataset.delby), 1); paintUpload(); });
+  box.querySelectorAll("[data-rmby]").forEach(b => b.onclick = () => { pullS(); s.by.splice(Number(b.dataset.rmby), 1); paintUpload(); });
   box.querySelectorAll("[data-addsp]").forEach(b => b.onclick = () => { pullS(); const bb = s.by[Number(b.dataset.addsp)]; bb.splits.forEach(x => { x.auto = false; }); bb.splits.push({ vendorId: "", qty: "", amount: "", auto: false }); paintUpload(); });
-  box.querySelectorAll("[data-delsp]").forEach(b => b.onclick = () => { pullS(); const [i, j] = b.dataset.delsp.split("|").map(Number); s.by[i].splits.splice(j, 1); if (!s.by[i].splits.length) s.by[i].splits.push({ vendorId: "", qty: "", amount: "", auto: false }); paintUpload(); });
-  box.querySelectorAll("[data-delexp]").forEach(b => b.onclick = () => { pullS(); s.exp.splice(Number(b.dataset.delexp), 1); paintUpload(); });
+  box.querySelectorAll("[data-rmsp]").forEach(b => b.onclick = () => { pullS(); const [i, j] = b.dataset.rmsp.split("|").map(Number); s.by[i].splits.splice(j, 1); if (!s.by[i].splits.length) s.by[i].splits.push({ vendorId: "", qty: "", amount: "", auto: false }); paintUpload(); });
+  box.querySelectorAll("[data-rmexp]").forEach(b => b.onclick = () => { pullS(); s.exp.splice(Number(b.dataset.rmexp), 1); paintUpload(); });
   document.getElementById("slipCancel").onclick = () => { slipDraft = null; paintUpload(); };
   document.getElementById("slipApply").onclick = () => { pullS(); if (applySlip(s)) { toast("Applied to the B2B and B2C days for " + s.date + "."); slipDraft = null; paintUpload(); } };
 }
@@ -5332,7 +5364,7 @@ function paintSummary() {
       <div><div class="lbl">${sp.mode === "custom" ? "From" : "Date"}</div><input id="sumDate" type="date" value="${sp.mode === "custom" ? sp.from : sp.date}" /></div>
       ${sp.mode === "custom" ? `<div><div class="lbl">To</div><input id="sumTo" type="date" value="${sp.to}" /></div>` : ""}
       <div><div class="lbl">&nbsp;</div><button class="btn tiny" id="sumPrint" type="button">Print / PDF</button></div></div>
-    <div id="sumBody">${summaryHTML(sp)}</div>`;
+    <div id="sumBody">${summaryHTML(sp)}${conversionHTML(sp)}</div>`;
   document.getElementById("sumMode").value = sp.mode;
   document.getElementById("sumMode").onchange = e => { state.sumMode = e.target.value; if (e.target.value === "custom") { state.sumFrom = sp.from; state.sumTo = sp.to; } paintSummary(); };
   document.getElementById("sumDate").onchange = e => { if (sp.mode === "custom") state.sumFrom = e.target.value; else state.sumDate = e.target.value; paintSummary(); };
@@ -5373,7 +5405,8 @@ function paintIndent() {
     <div class="row" style="grid-template-columns:1fr 1.4fr auto;align-items:end;">
       <div><div class="lbl">Customer</div><select id="indCust"><option value="">Select customer</option>${parties.map(p => `<option value="${p.id}" ${d && d.customerId === p.id ? "selected" : (!d && state.indentCustomer === p.id ? "selected" : "")}>${esc(p.name)}</option>`).join("")}</select></div>
       <div><div class="lbl">File</div><input id="indFile" type="file" accept="image/*,.xlsx,.csv,text/csv" /></div>
-      <div><button class="btn primary" id="indRead" type="button">Read indent</button></div></div>`;
+      <div><button class="btn primary" id="indRead" type="button">Read indent</button></div></div>
+    <div class="actions" style="margin-top:6px;"><span class="hint">For bulk entry, fill the sample template (products down, branches across) and upload it:</span><button class="btn tiny" id="indXlsxTemplate" type="button">Download Excel template</button><button class="btn tiny" id="indCsvTemplate" type="button">Download CSV template</button></div>`;
   if (d) {
     const party = partyOf(d.customerId), locs = party.locations || [];
     const tot = b => r2(d.items.reduce((s, it) => s + NUM(it.qty[b.name]), 0));
@@ -5383,7 +5416,7 @@ function paintIndent() {
       <tbody>${d.items.map((it, i) => `<tr data-it="${i}"><td><input data-k="name" list="orderNames" value="${esc(it.name)}" style="min-width:170px" /><div class="hint">${esc(it.raw)}</div></td>
         <td><select data-k="unit"><option value="kg" ${it.unit !== "pcs" ? "selected" : ""}>kg</option><option value="pcs" ${it.unit === "pcs" ? "selected" : ""}>pcs</option></select></td>
         ${d.branches.map(b => `<td><input data-q="${esc(b.name)}" type="number" step="any" value="${esc(it.qty[b.name] || "")}" style="width:84px" /></td>`).join("")}
-        <td><button class="btn tiny" data-delit="${i}" type="button">✕</button></td></tr>`).join("")}
+        <td><button class="btn tiny" data-rmit="${i}" type="button">✕</button></td></tr>`).join("")}
       <tr class="total"><td>Total</td><td></td>${d.branches.map(b => `<td class="num">${tot(b)}</td>`).join("")}<td></td></tr></tbody></table></div>
       <datalist id="indLocs">${locs.map(l => `<option value="${esc(l)}"></option>`).join("")}</datalist>
       <p class="note">Outlets that are not yet on the customer's profile are added to it. Kg for meat and liver, pieces for brain and paya (change a unit here or in Products).</p>
@@ -5391,6 +5424,8 @@ function paintIndent() {
   }
   box.innerHTML = h;
   document.getElementById("indCust").onchange = e => { state.indentCustomer = e.target.value; if (indentDraft) indentDraft.customerId = e.target.value; };
+  document.getElementById("indXlsxTemplate").onclick = () => downloadBlob("carne-indent-template.xlsx", [xlsxBytes(indentTemplateGrid(), "Indent")], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  document.getElementById("indCsvTemplate").onclick = () => downloadBlob("carne-indent-template.csv", [indentTemplateCsv()], "text/csv");
   document.getElementById("indRead").onclick = async () => {
     const cid = document.getElementById("indCust").value, f = document.getElementById("indFile").files[0];
     if (!cid) { alert("Select the customer first."); return; } if (!f) { alert("Choose the indent file or photo first."); return; }
@@ -5400,7 +5435,7 @@ function paintIndent() {
       if (!data) data = await readDocument("indent", grid ? { grid } : { file: f });
       if (!data || !(data.items || []).length) throw new Error("No products and quantities were found in that file.");
       indentDraft = indentFromData(data, cid); toast("Indent read. Check the table and enter the delivery date.");
-    } catch (e) { alert(e.message || "Could not read the indent."); }
+    } catch (e) { const msg = e.message || "Could not read the indent."; logUploadError("indent", f, e.stage || "reading the file", msg); alert("The indent could not be read.\n\n" + msg + "\n\nThis has been saved in Reports > Upload error log."); }
     paintIndent();
   };
   if (!d) return;
@@ -5411,7 +5446,7 @@ function paintIndent() {
     box.querySelectorAll("[data-it]").forEach(row => { const it = d.items[Number(row.dataset.it)]; row.querySelectorAll("[data-k]").forEach(el => { if (el.dataset.k === "name" && el.value !== it.name) { it.name = el.value; it.unit = unitOf(it.name); } else if (el.dataset.k !== "name") it[el.dataset.k] = el.value; }); row.querySelectorAll("[data-q]").forEach(el => { it.qty[el.dataset.q] = el.value; }); });
   };
   box.querySelectorAll("[data-bn], [data-bo], [data-it] input, [data-it] select, #indDate").forEach(el => el.onchange = () => { pull(); paintIndent(); });
-  box.querySelectorAll("[data-delit]").forEach(b => b.onclick = () => { pull(); d.items.splice(Number(b.dataset.delit), 1); paintIndent(); });
+  box.querySelectorAll("[data-rmit]").forEach(b => b.onclick = () => { pull(); d.items.splice(Number(b.dataset.rmit), 1); paintIndent(); });
   document.getElementById("indCancel").onclick = () => { indentDraft = null; paintIndent(); };
   document.getElementById("indConfirm").onclick = () => { pull(); if (confirmIndent(d)) { indentDraft = null; paintOrders(); } };
 }
@@ -5449,8 +5484,156 @@ function paintProductUnits() {
   const names = knownProductNames().sort((a, b) => a.localeCompare(b));
   box.innerHTML = `<div class="sec">Units for orders and slips</div><p class="note">Brain and paya are counted in pieces. Everything else is in kg unless you change it here.</p>
     <table class="nice"><thead><tr><th>Product</th><th>Unit</th></tr></thead><tbody>${names.map(nm => `<tr><td>${esc(nm)}</td><td><select data-unitfor="${esc(nm)}"><option value="kg" ${unitOf(nm) === "kg" ? "selected" : ""}>kg</option><option value="pcs" ${unitOf(nm) === "pcs" ? "selected" : ""}>pcs</option></select></td></tr>`).join("") || `<tr><td colspan="2">No products yet.</td></tr>`}</tbody></table>`;
-  card.appendChild(box);
+  card.appendChild(box); paintConversions(box);
   box.querySelectorAll("[data-unitfor]").forEach(s => s.onchange = () => { state.productUnits = state.productUnits || {}; state.productUnits[s.dataset.unitfor.toLowerCase()] = s.value; persist(); toast("Unit saved."); });
+}
+
+/* ================= Messages that stay until the user presses OK ================= */
+const modalQueue = [];
+function appModal(msg, title) {
+  modalQueue.push({ msg: String(msg == null ? "" : msg), title: title || "Please read" });
+  if (!document.getElementById("appModal")) showNextModal();
+}
+function showNextModal() {
+  const m = modalQueue.shift(); if (!m) return;
+  const wrap = document.createElement("div"); wrap.id = "appModal"; wrap.className = "modal-wrap"; wrap.setAttribute("role", "alertdialog"); wrap.setAttribute("aria-modal", "true");
+  wrap.innerHTML = `<div class="modal-box"><div class="modal-title">${esc(m.title)}</div><div class="modal-msg">${esc(m.msg)}</div><div class="actions" style="justify-content:flex-end;"><button class="btn primary" id="appModalOk" type="button">OK</button></div></div>`;
+  document.body.appendChild(wrap);
+  const ok = document.getElementById("appModalOk");
+  ok.onclick = () => { wrap.remove(); showNextModal(); };
+  ok.focus();
+}
+window.alert = function (msg) { appModal(msg); };
+const ERROR_WORDS = /(could not|cannot|can't|failed|failure|error|not saved|duplicate|invalid|denied|not allowed|refused|unable|only the owner|view-only|not found|not set up)/i;
+const plainToast = toast;
+toast = function (msg) { if (ERROR_WORDS.test(String(msg || ""))) appModal(msg); else plainToast(msg); };
+/* ================= Upload error log ================= */
+function logUploadError(kind, file, stage, message) {
+  try {
+    const u = currentUser() || {};
+    state.uploadLog = state.uploadLog || [];
+    state.uploadLog.unshift({ id: uid(), at: new Date().toISOString(), user: u.email || "", kind, file: file ? String(file.name || "") : "", size: file ? Number(file.size || 0) : 0, type: file ? String(file.type || "") : "", stage, message: String(message || "").slice(0, 600) });
+    state.uploadLog = state.uploadLog.slice(0, 200);
+    persist();
+  } catch (e) {}
+}
+function uploadLogHTML() {
+  const rows = state.uploadLog || [];
+  const when = iso => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
+  return `<p class="note">Every upload that could not be read is recorded here with the reason, so it can be checked later. The latest 200 are kept.</p>
+    <table><thead><tr><th>When</th><th>Who</th><th>Upload</th><th>File</th><th>Step</th><th>What went wrong</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(when(r.at))}</td><td>${esc(r.user)}</td><td>${r.kind === "indent" ? "Customer indent" : "Vendor slip"}</td><td>${esc(r.file || "—")}<div class="hint">${esc(r.type || "")}${r.size ? " · " + Math.round(r.size / 1024) + " KB" : ""}</div></td><td>${esc(r.stage)}</td><td>${esc(r.message)}</td></tr>`).join("") || `<tr><td colspan="6">No failed uploads recorded.</td></tr>`}</tbody></table>
+    ${rows.length ? `<div class="actions"><button class="btn tiny" id="clearUploadLog" type="button">Clear log</button></div>` : ""}`;
+}
+/* ================= Indent templates (Excel and CSV) ================= */
+function indentTemplateGrid() {
+  return [["Product", "Alwal", "Bowinpally", "Chintal", "Kondapur"], ["Mutton carcass", 2, 3, 2, 3], ["Liver", 1, 1, 2, 3], ["Brain", 2, 1, 2, 3], ["Paya", 0, 0, 0, 4]];
+}
+function indentTemplateCsv() { return indentTemplateGrid().map(r => r.map(c => /[",\n]/.test(String(c)) ? '"' + String(c).replace(/"/g, '""') + '"' : c).join(",")).join("\r\n") + "\r\n"; }
+const CRC_T = (() => { const t = []; for (let n0 = 0; n0 < 256; n0++) { let c = n0; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n0] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const lh = new Uint8Array(30 + name.length), dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(8, 0, true); dv.setUint32(14, crc, true); dv.setUint32(18, data.length, true); dv.setUint32(22, data.length, true); dv.setUint16(26, name.length, true); lh.set(name, 30);
+    const ch = new Uint8Array(46 + name.length), cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint32(16, crc, true); cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true); cv.setUint16(28, name.length, true); cv.setUint32(42, off, true); ch.set(name, 46);
+    parts.push(lh, data); central.push(ch); off += lh.length + data.length;
+  });
+  const cdSize = central.reduce((s, c) => s + c.length, 0), end = new Uint8Array(22), ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, files.length, true); ev.setUint16(10, files.length, true); ev.setUint32(12, cdSize, true); ev.setUint32(16, off, true);
+  const all = parts.concat(central, [end]), out = new Uint8Array(all.reduce((s, p) => s + p.length, 0)); let p0 = 0; all.forEach(p => { out.set(p, p0); p0 += p.length; });
+  return out;
+}
+function xlsxBytes(grid, sheetName) {
+  const col = i => { let s = ""; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const x = v => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const rows = grid.map((r, ri) => `<row r="${ri + 1}">` + r.map((c, ci) => typeof c === "number" ? `<c r="${col(ci)}${ri + 1}"><v>${c}</v></c>` : `<c r="${col(ci)}${ri + 1}" t="inlineStr"><is><t>${x(c)}</t></is></c>`).join("") + "</row>").join("");
+  const H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  return makeZip([
+    { name: "[Content_Types].xml", text: H + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>' },
+    { name: "_rels/.rels", text: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: "xl/workbook.xml", text: H + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + x(sheetName || "Sheet1") + '" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+    { name: "xl/_rels/workbook.xml.rels", text: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>' },
+    { name: "xl/worksheets/sheet1.xml", text: H + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="12" width="14" customWidth="1"/></cols><sheetData>' + rows + "</sheetData></worksheet>" }
+  ]);
+}
+function downloadBlob(name, parts, type) {
+  try {
+    const url = URL.createObjectURL(new Blob(parts, { type })), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (e) { appModal("Could not start the download in this browser. " + (e.message || ""), "Download failed"); }
+}
+/* ================= Conversions (B2C): carcass and bone less become cuts ================= */
+const DEFAULT_CONV = [{ source: "Mutton carcass", outputs: ["Mutton leg curry cut", "Mutton shoulder cut", "Mutton curry cut"] }, { source: "Bone less", outputs: ["Mutton mince"] }];
+function convLinks() { return Array.isArray(state.conversions) ? state.conversions : DEFAULT_CONV; }
+function editConv() { if (!Array.isArray(state.conversions)) state.conversions = structuredClone(DEFAULT_CONV); return state.conversions; }
+function itemKg(it) {
+  if (it.packets != null && it.packets !== "") return n(it.packets) * n(it.packetG) / 1000;
+  const u = it.unit || "kg"; if (u === "g" || u === "grams") return n(it.qty) / 1000; if (u === "pcs") return 0;
+  return n(it.qty);
+}
+function convSourceMatch(link, p) {
+  if (/carcass/i.test(link.source)) return isCarcassLine(p);
+  const k = productKey(link.source);
+  return productNorm(p.name) === productNorm(link.source) || (k && productKey(p.name) === k && !isCarcassLine(p));
+}
+function convData(span) {
+  const links = convLinks().filter(l => l.source && (l.outputs || []).length);
+  const days = sortedDays().filter(d => d.channel === "b2c" && d.date >= span.from && d.date <= span.to);
+  const invs = (state.taxInvoices || []).filter(i => (i.channel || "b2b") === "b2c" && i.date >= span.from && i.date <= span.to);
+  const vname = id => { const v = (state.vendors || []).find(x => x.id === id); return v ? v.name : (id ? "Unknown vendor" : "Vendor not set"); };
+  return links.map(l => {
+    const R = { source: l.source, cuts: (l.outputs || []).map(o => ({ name: o, kg: 0, rev: 0, cost: 0 })), vendors: {}, boughtKg: 0, boughtCost: 0, soldKg: 0, soldCost: 0, lots: {} };
+    days.forEach(d => {
+      const r = compute(d), lines = (d.purchases || []).filter(p => convSourceMatch(l, p) && toKg(p.qty, p.unit || "kg") > 0);
+      if (!lines.length) return;
+      const car = /carcass/i.test(l.source), kgSum = lines.reduce((s, p) => s + toKg(p.qty, p.unit || "kg"), 0), costSum = lines.reduce((s, p) => s + toKg(p.qty, p.unit || "kg") * n(p.buy), 0), blended = kgSum ? costSum / kgSum : 0;
+      R.lots[d.date] = lines.map(p => { const kg = toKg(p.qty, p.unit || "kg"), buy = n(p.buy); return { vendorId: p.vendorId || d.vendorId || "", kg, buy, costKg: car ? r.costingUnit + (buy - blended) : buy }; });
+      R.lots[d.date].forEach(x => { const v = R.vendors[x.vendorId] || (R.vendors[x.vendorId] = { vendorId: x.vendorId, name: vname(x.vendorId), kg: 0, buyCost: 0, cost: 0, allocKg: 0, allocCost: 0 }); v.kg += x.kg; v.buyCost += x.kg * x.buy; v.cost += x.kg * x.costKg; R.boughtKg += x.kg; R.boughtCost += x.kg * x.buy; });
+    });
+    const allLots = Object.values(R.lots).flat(), allKg = allLots.reduce((s, x) => s + x.kg, 0), allAvg = allKg ? allLots.reduce((s, x) => s + x.kg * x.costKg, 0) / allKg : 0;
+    const dates = Array.from(new Set(invs.map(i => i.date)));
+    dates.forEach(date => {
+      const lots = R.lots[date] || [], lk = lots.reduce((s, x) => s + x.kg, 0), avg = lk ? lots.reduce((s, x) => s + x.kg * x.costKg, 0) / lk : allAvg;
+      R.cuts.forEach(c => {
+        let kg = 0, rev = 0;
+        invs.filter(i => i.date === date).forEach(i => (i.items || []).forEach(it => { if (productNorm(it.name) === productNorm(c.name)) { kg += itemKg(it); rev += itemAmount(it); } }));
+        if (!kg && !rev) return;
+        c.kg += kg; c.rev += rev; c.cost += kg * avg; R.soldKg += kg; R.soldCost += kg * avg;
+        (lk ? lots : []).forEach(x => { const v = R.vendors[x.vendorId], share = kg * x.kg / lk; v.allocKg += share; v.allocCost += share * x.costKg; });
+      });
+    });
+    R.leftKg = R.boughtKg - R.soldKg; R.leftCost = R.leftKg * allAvg; R.avgCost = allAvg;
+    return R;
+  }).filter(R => R.boughtKg > 0 || R.soldKg > 0);
+}
+function conversionHTML(span) {
+  const D = convData(span); if (!D.length) return "";
+  const pn = v => `<span class="${v >= 0 ? "pos" : "neg"}">${money(v)}</span>`;
+  return `<div class="sec">B2C conversion: purchases and the cuts made from them</div>` + D.map(R => `
+    <div class="sec" style="font-size:14px;">${esc(R.source)}${/carcass/i.test(R.source) ? " (all carcass products)" : ""}</div>
+    <table class="nice"><thead><tr><th>Vendor</th><th class="num">Bought kg</th><th class="num">Buy rate</th><th class="num">Cost per kg</th><th class="num">Sold as cuts (kg)</th><th class="num">Cost of those</th></tr></thead><tbody>${Object.values(R.vendors).map(v => `<tr><td>${esc(v.name)}</td><td class="num">${num(v.kg)}</td><td class="num">${money(v.kg ? v.buyCost / v.kg : 0)}</td><td class="num">${money(v.kg ? v.cost / v.kg : 0)}</td><td class="num">${num(v.allocKg)}</td><td class="num">${money(v.allocCost)}</td></tr>`).join("")}</tbody></table>
+    <table class="nice" style="margin-top:8px;"><thead><tr><th>Cut sold</th><th class="num">Kg</th><th class="num">Sales</th><th class="num">Cost</th><th class="num">Profit</th><th class="num">Profit per kg</th></tr></thead><tbody>${R.cuts.map(c => `<tr><td>${esc(c.name)}</td><td class="num">${num(c.kg)}</td><td class="num">${money(c.rev)}</td><td class="num">${money(c.cost)}</td><td class="num">${pn(c.rev - c.cost)}</td><td class="num">${c.kg ? pn((c.rev - c.cost) / c.kg) : "—"}</td></tr>`).join("")}
+    <tr class="total"><td>Total sold</td><td class="num">${num(R.soldKg)}</td><td class="num">${money(R.cuts.reduce((s, c) => s + c.rev, 0))}</td><td class="num">${money(R.soldCost)}</td><td class="num">${pn(R.cuts.reduce((s, c) => s + c.rev, 0) - R.soldCost)}</td><td></td></tr></tbody></table>
+    <p class="note">Bought ${num(R.boughtKg)} kg, sold as cuts ${num(R.soldKg)} kg. Not yet sold or lost: ${num(R.leftKg)} kg (about ${money(R.leftCost)}).</p>`).join("") +
+    `<p class="note">Cuts take their kg from the B2C invoices. The same vendor and product always carry the same cost per kg, and a second vendor for the same product has its own cost per kg. For carcass the cost per kg is the day's costing plus or minus the difference between that vendor's rate and the blended rate. For bone less (mince) it is the vendor's buy rate. The day's profit shown in the table above is unchanged.</p>`;
+}
+function paintConversions(box) {
+  const links = convLinks(), master = knownProductNames().concat((state.taxInvoices || []).filter(i => (i.channel || "b2b") === "b2c").flatMap(i => (i.items || []).map(it => it.name)), links.flatMap(l => l.outputs || []));
+  const cuts = Array.from(new Set(master.map(x => String(x || "").trim()).filter(x => x && !/carcass/i.test(x)))).sort((a, b) => a.localeCompare(b));
+  const sources = ["Mutton carcass"].concat(cuts.filter(x => !(x in {})));
+  const sec = document.createElement("div");
+  sec.innerHTML = `<div class="sec">Conversions (B2C): what each purchase becomes</div><p class="note">Link a purchased product to the products it is sold as. Invoices use the sold names; the Summary and Reports then show what was bought, sold and left, by vendor.</p>` +
+    links.map((l, i) => `<div style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-top:8px;"><div class="row" style="grid-template-columns:1fr auto;align-items:end;"><div><div class="lbl">Purchased product</div><select data-cvsrc="${i}">${(sources.includes(l.source) ? sources : sources.concat(l.source)).map(x => `<option ${x === l.source ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></div><button class="btn tiny" data-cvrm="${i}" type="button">Remove link</button></div>
+      <div class="lbl" style="margin-top:6px;">Becomes (tick every cut sold)</div><div style="display:flex;flex-wrap:wrap;gap:6px 14px;">${cuts.filter(x => productNorm(x) !== productNorm(l.source)).map(x => `<label style="display:flex;gap:4px;align-items:center;font-size:13px;"><input type="checkbox" style="width:auto" data-cvout="${i}|${esc(x)}" ${(l.outputs || []).some(o => productNorm(o) === productNorm(x)) ? "checked" : ""} />${esc(x)}</label>`).join("") || `<span class="hint">No other products yet.</span>`}</div></div>`).join("") +
+    `<div class="actions"><button class="btn tiny" id="cvAdd" type="button">+ Add conversion</button></div>`;
+  box.appendChild(sec);
+  sec.querySelectorAll("[data-cvsrc]").forEach(s => s.onchange = () => { editConv()[Number(s.dataset.cvsrc)].source = s.value; persist(); toast("Conversion saved."); });
+  sec.querySelectorAll("[data-cvout]").forEach(c => c.onchange = () => { const [i, name] = c.dataset.cvout.split("|"), l = editConv()[Number(i)]; l.outputs = (l.outputs || []).filter(o => productNorm(o) !== productNorm(name)); if (c.checked) l.outputs.push(name); persist(); toast("Conversion saved."); });
+  sec.querySelectorAll("[data-cvrm]").forEach(b => b.onclick = () => { editConv().splice(Number(b.dataset.cvrm), 1); persist(); paintProductUnits(); });
+  sec.querySelector("#cvAdd").onclick = () => { editConv().push({ source: "Bone less", outputs: [] }); persist(); paintProductUnits(); };
 }
 
 window.openTab = function (tab) {
@@ -5687,7 +5870,7 @@ const PERM_SETTINGS_ID = /^(saveCompany|sheetSave|importJson|exportJson|loadSamp
 const PERM_DELETE_ID = /^(delete\w*|del[A-Z]\w*|removeSign|removeLogo|clear(Cash|Day|Cust)|discardDraft)$/;
 const PERM_READ_ID = /^(menuBtn|logout|ask\w*|rep(Pdf|Excel|Download)|cust(Pdf|Excel|Download)|printInv|\w*Template|modeDay|modePeriod|hideGuide|sheetLoad)$/;
 function classify(el) {
-  if (el.closest("#loginForm,#askPanel")) return "read";
+  if (el.closest("#loginForm,#askPanel,#appModal")) return "read";
   const id = el.id || "", ds = Object.keys(el.dataset || {});
   const txt = (el.textContent || "").trim();
   if (PERM_SETTINGS_ID.test(id) || ds.some(k => /^(saveuser|deluser|approve)$/.test(k)) || el.closest("#companyCard,#usersCard")) return "settings";

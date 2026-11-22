@@ -234,8 +234,8 @@
         <div><div class="lbl">Raw material vendor</div><select id="vendorPick"></select><button class="btn tiny" id="addVendorToday" type="button">+ Add vendor</button></div>
       </div>
       <div class="sec">1. Carcass</div>
-      <p class="note">Only this value is added to the selected vendor.</p>
-      <div class="row" style="grid-template-columns:1fr 1.1fr .6fr .6fr .7fr auto;"><div class="lbl">Vendor</div><div class="lbl">Particular</div><div class="lbl">Qty</div><div class="lbl">Buy rate</div><div class="lbl">Payment</div><div></div></div>
+      <p class="note">Only this value is added to the selected vendor. If a vendor sends more than one carcass product (for example Mutton carcass and Mutton carcass_G2), tick Mix on those rows to cost them together at one blended price.</p>
+      <div class="row" style="grid-template-columns:1fr 1.1fr .6fr .6fr .7fr .5fr;"><div class="lbl">Vendor</div><div class="lbl">Particular</div><div class="lbl">Qty</div><div class="lbl">Buy rate</div><div class="lbl">Payment</div><div class="lbl" title="Tick two or more carcass products to cost them together at one blended price">Mix price</div></div>
       <div id="carcassPurchases"></div>
       <div class="sec">2. By-products</div>
       <p class="note">Liver, brain, paya, boneless and others. These are not added to the vendor.</p>
@@ -1368,7 +1368,12 @@ function blankInvoice() {
 }
 function compute(f) {
   const purchases = f.purchases.map(p => { const kg = toKg(p.qty, p.unit || "kg"); return { ...p, kg, cost: kg*n(p.buy), sale: kg*n(p.sell) }; });
-  const carcass = purchases.find(p => p.costing) || purchases[0];
+  let carcass = purchases.find(p => p.costing) || purchases[0];
+  const mixLines = purchases.filter(p => p.mix && isCarcassLine(p));
+  if (mixLines.length >= 2) {   // carcass products marked "mix" are costed together at their blended rate
+    const mkg = mixLines.reduce((s,p) => s+p.kg, 0), mcost = mixLines.reduce((s,p) => s+p.cost, 0);
+    carcass = { ...mixLines[0], name: "Mixed carcass", kg: mkg, qty: mkg, unit: "kg", cost: mcost, buy: mkg ? mcost/mkg : 0, mixed: true };
+  }
   const landing = purchases.reduce((s,p) => s+p.cost, 0);
   const productSales = purchases.filter(p => !p.costing).reduce((s,p) => s+p.sale, 0);
   const lineOffal = (f.afflesLines||[]).length ? (f.afflesLines||[]).reduce((s,a)=>s+n(a.units)*n(a.rate),0) : n(f.afflesUnits)*n(f.afflesRate);
@@ -2220,7 +2225,7 @@ function renderPurchases() {
     const box = carcass ? carcassBox : byBox;
     if (!box) return;
     const row = document.createElement("div"); row.className = "row";
-    row.style.gridTemplateColumns = carcass ? "1fr 1.1fr .6fr .6fr .7fr auto" : "1.2fr .6fr .6fr .6fr auto";
+    row.style.gridTemplateColumns = carcass ? "1fr 1.1fr .6fr .6fr .7fr .5fr" : "1.2fr .6fr .6fr .6fr auto";
     if (!p.pay) p.pay = "credit";
     if (carcass) {
       if (!p.vendorId) p.vendorId = form.vendorId || (state.vendors[0] && state.vendors[0].id) || "";
@@ -2252,6 +2257,13 @@ function renderPurchases() {
       row.appendChild(inp);
     });
     if (carcass) row.appendChild(pay);
+    if (carcass) {
+      const mixBox = document.createElement("label"); mixBox.className = "hint"; mixBox.style.display = "flex"; mixBox.style.alignItems = "center"; mixBox.style.gap = "4px";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!p.mix; cb.style.width = "auto";
+      cb.addEventListener("change", () => { form.purchases[i].mix = cb.checked; paint(); });
+      mixBox.append(cb, document.createTextNode("Mix"));
+      row.appendChild(mixBox);
+    }
     if (!carcass) {
       const del = document.createElement("button"); del.type="button"; del.className="btn tiny"; del.textContent="Delete";
       del.addEventListener("click", () => { form.purchases.splice(i,1); renderPurchases(); paint(); });
@@ -3048,7 +3060,7 @@ function paintVendors() {
   document.getElementById("vendorForm").innerHTML = `<h2>Vendor payable</h2>
     <div class="formula">Closing = opening balance − paid by us + fresh raw material purchase</div>
     <div class="lbl">Vendor</div><input id="vName" placeholder="Supplier name" value="${editing?esc(editing.name):""}" />
-    <div class="lbl">Supplies (comma separated, e.g. carcass, liver, paya)</div><input id="vSupplies" placeholder="carcass, liver" value="${editing?esc(editing.supplies||""):""}" />
+    <div class="lbl">Supplies (comma separated, e.g. carcass, liver, paya)</div><input id="vSupplies" placeholder="carcass, carcass_G2, liver" value="${editing?esc(editing.supplies||""):""}" />
     <div class="row" style="grid-template-columns:1fr 1fr;margin-top:8px;">
       <div><div class="lbl">Opening balance</div><input id="vOpen" type="number" value="${editing?editing.opening:""}" /></div>
       <div><div class="lbl">As on date</div><input id="vAsOn" type="date" value="${editing?editing.asOn:today()}" /></div>
@@ -4732,19 +4744,24 @@ function paintOrders() {
   const vend = id => (state.vendors || []).map(v => `<option value="${v.id}" ${v.id === id ? "selected" : ""}>${esc(v.name)}</option>`).join("");
   if (!planDraft.carcass) {
     const cv = (state.vendors || []).find(v => /carc/i.test(v.supplies || "")) || (state.vendors || [])[0] || {};
-    planDraft.carcass = [{ vendorId: cv.id || "", total: suggest || "", b2b: "", buy: "", pay: "credit", auto: true }];
+    planDraft.carcass = [{ vendorId: cv.id || "", product: "Mutton carcass", total: suggest || "", b2b: "", buy: "", pay: "credit", mix: false, auto: true }];
   }
   if (!planDraft.by) planDraft.by = {};
-  planDraft.carcass.forEach(r => { if (r.auto) { r.total = suggest || ""; r.b2b = ""; } });
+  planDraft.carcass.forEach(r => { if (!r.product) r.product = "Mutton carcass"; });
+  if (planDraft.carcass.length === 1) { const r0 = planDraft.carcass[0]; if (r0.auto) { r0.total = suggest || ""; r0.b2b = ""; } } else planDraft.carcass.forEach(r => { r.auto = false; });
   byp.forEach(x => { const k = x.name.toLowerCase(); if (!planDraft.by[k]) planDraft.by[k] = { vendorId: vendorFor(x.name) || ((state.vendors || [])[0] || {}).id || "", kg: r2(x.b2b + x.b2c), buy: "", pay: "credit", auto: true }; if (planDraft.by[k].auto) planDraft.by[k].kg = r2(x.b2b + x.b2c); });
   const share = (tot, row) => { const d = meatB2b + meatB2c; const b = row.b2b !== "" && row.b2b != null ? n(row.b2b) : (d ? r2(tot * meatB2b / d) : 0); return { b2b: b, b2c: r2(tot - b) }; };
-  const cRows = planDraft.carcass.map((r, i) => { const s = share(n(r.total), r); return `<div class="row" data-c="${i}" style="grid-template-columns:1.3fr .7fr .7fr .7fr .7fr .7fr auto;align-items:end;margin-top:6px;">
+  const allocated = r2(planDraft.carcass.reduce((s, r) => s + n(r.total), 0));
+  const carcassNames = Array.from(new Set(["Mutton carcass"].concat((state.products || []).map(p => typeof p === "string" ? p : p && p.name).filter(x => /carc/i.test(x || "")), (state.vendors || []).flatMap(v => String(v.supplies || "").split(/[,;\n]+/).map(t => t.trim()).filter(t => /carc/i.test(t))))));
+  const cRows = planDraft.carcass.map((r, i) => { const s = share(n(r.total), r); return `<div class="row" data-c="${i}" style="grid-template-columns:1.1fr 1.1fr .65fr .65fr .65fr .65fr .7fr .45fr auto;align-items:end;margin-top:6px;">
       <div><div class="lbl">Vendor</div><select data-k="vendorId">${vend(r.vendorId)}</select></div>
+      <div><div class="lbl">Carcass product</div><input data-k="product" list="carcassNames" value="${esc(r.product)}" /></div>
       <div><div class="lbl">Total kg</div><input data-k="total" type="number" step="any" value="${esc(r.total)}" /></div>
       <div><div class="lbl">B2B kg</div><input data-k="b2b" type="number" step="any" value="${r.b2b !== "" ? esc(r.b2b) : s.b2b}" /></div>
       <div><div class="lbl">B2C kg</div><input value="${s.b2c}" readonly /></div>
       <div><div class="lbl">Buy rate</div><input data-k="buy" type="number" step="any" value="${esc(r.buy)}" /></div>
       <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${r.pay!=="cash"?"selected":""}>Credit</option><option value="cash" ${r.pay==="cash"?"selected":""}>Cash</option></select></div>
+      <div><div class="lbl" title="Tick two or more carcass products to cost them together at one blended price">Mix</div><input data-k="mix" type="checkbox" ${r.mix?"checked":""} style="width:auto" /></div>
       <button class="btn tiny" data-delc="${i}" type="button">✕</button></div>`; }).join("");
   const bRows = byp.map(x => { const k = x.name.toLowerCase(), r = planDraft.by[k], tot = x.b2b + x.b2c; return `<div class="row" data-b="${esc(k)}" style="grid-template-columns:1fr 1.3fr .7fr .7fr .7fr auto;align-items:end;margin-top:6px;">
       <div><div class="lbl">Product</div><input value="${esc(x.name)}" readonly /></div>
@@ -4758,20 +4775,20 @@ function paintOrders() {
     ${dem.length ? `<table><thead><tr><th>Product</th><th>Type</th><th class="num">B2B kg</th><th class="num">B2C kg</th><th class="num">Total kg</th></tr></thead><tbody>${dem.map(x => `<tr><td>${esc(x.name)}</td><td>${x.byp ? "By-product" : "Carcass meat"}</td><td class="num">${r2(x.b2b)}</td><td class="num">${r2(x.b2c)}</td><td class="num">${r2(x.b2b + x.b2c)}</td></tr>`).join("")}<tr><th>Total</th><th></th><th class="num">${r2(dem.reduce((s, x) => s + x.b2b, 0))}</th><th class="num">${r2(dem.reduce((s, x) => s + x.b2c, 0))}</th><th class="num">${r2(dem.reduce((s, x) => s + x.b2b + x.b2c, 0))}</th></tr></tbody></table>` : `<p class="note">No orders for this date yet.</p>`}
     <div class="sec">Carcass</div>
     <div class="row" style="grid-template-columns:160px 1fr;align-items:end;"><div><div class="lbl">Loss % to allow</div><input id="planLoss" type="number" step="any" value="${esc(planDraft.loss)}" /></div><div class="hint">Ordered meat ${r2(meatB2b + meatB2c)} kg → suggested carcass ${suggest} kg (ordered kg increased by the loss %). You can overwrite the kg.</div></div>
-    <div id="planCarcass">${cRows}</div><div class="actions"><button class="btn tiny" id="planAddC" type="button">+ Add vendor</button></div>
+    <datalist id="carcassNames">${carcassNames.map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist><div id="planCarcass">${cRows}</div><div class="hint" style="margin-top:6px;">Allocated ${allocated} kg of the suggested ${suggest} kg${Math.abs(allocated - suggest) > 0.05 ? " (difference " + r2(allocated - suggest) + " kg)" : ""}. Add one row per carcass product for each vendor, each with its own buy rate. Tick Mix on the products to cost together at one blended price.</div><div class="actions"><button class="btn tiny" id="planAddC" type="button">+ Add carcass product</button></div>
     <div class="sec">By-products</div>
     ${byp.length ? bRows : `<p class="note">No by-product orders for this date.</p>`}
     <p class="note">Apply writes these purchases into the B2B and B2C day entries for ${date}, and fills the carcass split. Applying again updates the same lines and never duplicates them. Carcass and by-product purchases on credit are added to the vendor's dues.</p>
     <div class="actions"><button class="btn primary" id="planApply" type="button">Apply to B2B and B2C days</button></div>`;
   const readPlan = () => {
     planDraft.loss = n(document.getElementById("planLoss").value);
-    plan.querySelectorAll("[data-c]").forEach(row => { const r = planDraft.carcass[Number(row.dataset.c)]; row.querySelectorAll("[data-k]").forEach(el => { if ((el.dataset.k === "total" || el.dataset.k === "b2b") && String(r[el.dataset.k]) !== el.value && !(el.dataset.k === "b2b" && r.auto)) r.auto = false; if (!(el.dataset.k === "b2b" && r.auto)) r[el.dataset.k] = el.value; }); });
+    plan.querySelectorAll("[data-c]").forEach(row => { const r = planDraft.carcass[Number(row.dataset.c)]; row.querySelectorAll("[data-k]").forEach(el => { if (el.type === "checkbox") { r[el.dataset.k] = el.checked; return; } if ((el.dataset.k === "total" || el.dataset.k === "b2b") && String(r[el.dataset.k]) !== el.value && !(el.dataset.k === "b2b" && r.auto)) r.auto = false; if (!(el.dataset.k === "b2b" && r.auto)) r[el.dataset.k] = el.value; }); });
     plan.querySelectorAll("[data-b]").forEach(row => { const r = planDraft.by[row.dataset.b]; row.querySelectorAll("[data-k]").forEach(el => { if (el.dataset.k === "kg" && String(r.kg) !== el.value) r.auto = false; r[el.dataset.k] = el.value; }); });
   };
   document.getElementById("planDate").onchange = e => { state.orderPlanDate = e.target.value; planDraft = { date: "", loss: planDraft.loss, carcass: null, by: null }; paintOrders(); };
   document.getElementById("planLoss").onchange = () => { readPlan(); planDraft.carcass = null; paintOrders(); };
-  plan.querySelectorAll("[data-c] [data-k=total], [data-c] [data-k=b2b], [data-c] [data-k=vendorId]").forEach(el => el.onchange = () => { readPlan(); paintOrders(); });
-  document.getElementById("planAddC").onclick = () => { readPlan(); planDraft.carcass.push({ vendorId: ((state.vendors || [])[0] || {}).id || "", total: "", b2b: "", buy: "", pay: "credit" }); paintOrders(); };
+  plan.querySelectorAll("[data-c] [data-k=total], [data-c] [data-k=b2b], [data-c] [data-k=vendorId], [data-c] [data-k=product]").forEach(el => el.onchange = () => { readPlan(); paintOrders(); });
+  document.getElementById("planAddC").onclick = () => { readPlan(); const last = planDraft.carcass[planDraft.carcass.length - 1] || {}; planDraft.carcass.forEach(r => { r.auto = false; }); planDraft.carcass.push({ vendorId: last.vendorId || ((state.vendors || [])[0] || {}).id || "", product: "Mutton carcass_G2", total: "", b2b: "", buy: "", pay: last.pay || "credit", mix: !!last.mix, auto: false }); paintOrders(); };
   plan.querySelectorAll("[data-delc]").forEach(b => b.onclick = () => { readPlan(); planDraft.carcass.splice(Number(b.dataset.delc), 1); if (!planDraft.carcass.length) planDraft.carcass = null; paintOrders(); });
   document.getElementById("planApply").onclick = () => { readPlan(); applyPlan(date, meatB2b, meatB2c, byp); };
   /* ---- order list ---- */
@@ -4817,9 +4834,11 @@ function applyPlan(date, meatB2b, meatB2c, byp) {
   let did = 0;
   const rows = planDraft.carcass || [];
   const used = rows.filter(r => r.vendorId && n(r.total) > 0);
-  if (used.length && new Set(used.map(r => r.vendorId)).size !== used.length) { alert("Each vendor can appear only once in the carcass list."); return; }
-  const split = splitRows(date);
-  const saved = [];
+  const keyOf = r => r.vendorId + "|" + String(r.product || "Mutton carcass").trim().toLowerCase();
+  if (used.length && new Set(used.map(keyOf)).size !== used.length) { alert("The same vendor and carcass product appears twice. Combine them into one row."); return; }
+  const wasMixed = new Set();
+  const lineName = r => String(r.product || "Mutton carcass").trim();
+  const byVendor = {};
   used.forEach(r => {
     const tot = r2(r.total), d = meatB2b + meatB2c;
     const b = r.b2b !== "" && r.b2b != null ? r2(r.b2b) : (d ? r2(tot * meatB2b / d) : 0), c = r2(tot - b);
@@ -4828,14 +4847,21 @@ function applyPlan(date, meatB2b, meatB2c, byp) {
       const store = ch === "b2c" ? state.daysB2C : state.days;
       if (!store[date]) { const x = blank(); x.date = date; x.channel = ch; store[date] = x; }
       const day = store[date]; day.purchases = day.purchases || [];
-      let line = day.purchases.find(p => isCarcassLine(p) && p.vendorId === r.vendorId);
-      if (!line) { line = day.purchases.find(p => isCarcassLine(p) && !p.vendorId && n(p.qty) === 0); if (line) line.vendorId = r.vendorId; }
-      if (!line) { line = { name: "Mutton carcass", qty: "", buy: "", sell: "", costing: true, pay: "credit", vendorId: r.vendorId }; day.purchases.unshift(line); }
-      line.qty = String(q); line.unit = line.unit || "kg"; line.pay = r.pay === "cash" ? "cash" : "credit"; if (r.buy !== "") line.buy = r.buy;
+      const nm = lineName(r).toLowerCase();
+      let line = day.purchases.find(p => isCarcassLine(p) && p.vendorId === r.vendorId && String(p.name || "").toLowerCase() === nm);
+      if (!line) line = day.purchases.find(p => isCarcassLine(p) && !p.vendorId && !n(p.qty) && String(p.name || "").toLowerCase() === nm);
+      if (!line) line = day.purchases.find(p => isCarcassLine(p) && !n(p.qty) && !n(p.buy) && !p.src);   // empty starter carcass row
+      if (!line) { line = { name: lineName(r), qty: "", buy: "", sell: "", costing: true, pay: "credit", vendorId: r.vendorId }; day.purchases.unshift(line); }
+      line.name = lineName(r); line.costing = true; line.vendorId = r.vendorId; line.qty = String(q); line.unit = line.unit || "kg";
+      line.pay = r.pay === "cash" ? "cash" : "credit"; if (r.buy !== "") line.buy = r.buy;
+      if (r.mix) line.mix = true; else delete line.mix;
     });
-    saved.push({ vendorId: r.vendorId, total: String(tot), b2b: String(b), b2c: String(c), saved: true }); did++;
+    const v = byVendor[r.vendorId] || (byVendor[r.vendorId] = { vendorId: r.vendorId, total: 0, b2b: 0, b2c: 0 });
+    v.total = r2(v.total + tot); v.b2b = r2(v.b2b + b); v.b2c = r2(v.b2c + c); did++;
   });
+  const saved = Object.values(byVendor).map(v => ({ vendorId: v.vendorId, total: String(v.total), b2b: String(v.b2b), b2c: String(v.b2c), saved: true }));
   if (saved.length) {
+    const split = splitRows(date);
     const keep = split.filter(x => x.vendorId && !saved.some(s => s.vendorId === x.vendorId) && (x.total || x.b2b || x.b2c));
     splitStore()[date] = keep.concat(saved);
   }

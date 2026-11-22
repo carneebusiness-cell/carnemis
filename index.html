@@ -162,7 +162,8 @@
   #askLog { overflow:auto; padding:0 12px 12px; display:flex; flex-direction:column; gap:8px; }
   .ask-me,.ask-bot { padding:8px 10px; border-radius:12px; max-width:90%; }
   .ask-me { align-self:flex-end; background:#efe6da; }
-  .ask-bot { align-self:flex-start; background:#f7f1e7; }
+  .ask-bot { align-self:flex-start; background:#f7f1e7; white-space:pre-wrap; }
+  .ask-bot.thinking { opacity:.6; font-style:italic; }
   #askForm { display:flex; gap:6px; padding:10px; border-top:1px solid var(--line); }
   #askForm input { flex:1; }
   @media (max-width:900px) { #askBtn { left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); } #askPanel { left:12px; right:12px; width:auto; bottom:calc(88px + env(safe-area-inset-bottom)); } }
@@ -212,7 +213,7 @@
   <div class="nav" id="mainNav">
     <span class="grp"><button class="on" data-tab="b2b" onclick="window.openTab&&openTab('b2b')">B2B day</button><button data-tab="b2c" onclick="window.openTab&&openTab('b2c')">B2C day</button></span>
     <span class="grp"><button data-tab="invoice" onclick="window.openTab&&openTab('invoice')">New invoice</button><button data-tab="invoicelist" onclick="window.openTab&&openTab('invoicelist')">All invoices</button><button data-tab="customers" onclick="window.openTab&&openTab('customers')">Customers</button><button data-tab="dues" onclick="window.openTab&&openTab('dues')">Customer dues</button></span>
-    <span class="grp"><button data-tab="vendors" onclick="window.openTab&&openTab('vendors')">Vendors</button><button data-tab="cash" onclick="window.openTab&&openTab('cash')">Cash</button></span>
+    <span class="grp"><button data-tab="orders" onclick="window.openTab&&openTab('orders')">Orders</button><button data-tab="vendors" onclick="window.openTab&&openTab('vendors')">Vendors</button><button data-tab="cash" onclick="window.openTab&&openTab('cash')">Cash</button></span>
     <span class="grp"><button data-tab="inventory" onclick="window.openTab&&openTab('inventory')">Inventory</button><button data-tab="products" onclick="window.openTab&&openTab('products')">Products</button><button data-tab="report" onclick="window.openTab&&openTab('report')">Reports</button><button data-tab="customer" onclick="window.openTab&&openTab('customer')">Customer P&L</button><button data-tab="history" onclick="window.openTab&&openTab('history')">History</button><button data-tab="users" onclick="window.openTab&&openTab('users')">Users</button><button data-tab="company" onclick="window.openTab&&openTab('company')">Company</button></span>
     <button class="btn tiny" id="logout" type="button" onclick="window.doLogout && window.doLogout()">Logout</button>
   </div>
@@ -296,6 +297,7 @@
     </div>
     <div class="card" id="liveCard"></div>
   </section>
+  <section id="orders" class="hidden"><div class="card" id="ordersForm" style="margin-bottom:14px;"></div><div class="card" id="ordersPlan" style="margin-bottom:14px;"></div><div class="card" id="ordersList"></div></section>
   <section id="report" class="hidden"><div class="card" id="reportCard"></div></section>
   <section id="vendors" class="hidden"><div class="split"><div class="card" id="vendorForm"></div><div class="card" id="vendorBook"></div></div></section>
   <section id="customers" class="hidden"><div class="card" id="customersCard"></div></section>
@@ -367,7 +369,8 @@
 <div id="askPanel" class="hidden">
   <div class="ask-head"><span>Carne assistant</span><span class="actions"><button class="btn tiny" id="askMin" type="button" aria-label="Minimize">–</button><button class="btn tiny" id="askClose" type="button" aria-label="Close">✕</button></span></div>
   <div id="askLog"></div>
-  <form id="askForm"><input id="askInput" placeholder="Ask or tell Carne what to open" /><button class="btn primary" type="submit">Send</button></form>
+  <form id="askForm"><input id="askInput" maxlength="500" placeholder="Ask about sales, dues, profit... or say open B2C" /><button class="btn primary" type="submit">Send</button></form>
+  <div class="hint" style="padding:0 12px 10px;">AI answers can be wrong. Check important numbers in the reports.</div>
 </div>
 <div id="loader"><div class="spin-card"><div class="spin"></div><div id="loaderText">Loading...</div></div></div>
 <div id="errBanner" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;background:#9b2c2c;color:#fff;padding:16px 18px;border-radius:14px;max-width:min(420px,90vw);text-align:center;"></div>
@@ -395,15 +398,15 @@ const ACCESS = [
   ["b2b","B2B day"],["b2c","B2C day"],["inventory","Inventory"],["products","Products"],["summary","Live summary"],
   ["invoice","New invoice"],["invoicelist","All invoices"],["customers","Customers"],["dues","Customer dues"],
   ["vendors","Vendors"],["cash","Cash"],["rates","Product rates"],["report","Reports"],
-  ["customer","Customer P&L"],["history","History"]
+  ["customer","Customer P&L"],["history","History"],["orders","Orders"]
 ];
-const ENTRY_TABS = ["b2b","b2c","inventory","products"];
+const ENTRY_TABS = ["b2b","b2c","inventory","products","orders"];
 const ALL_TABS = ACCESS.map(a => a[0]);
 /* Levels. write = add/edit, del = delete/clear, settings = company, users, backup/import */
 const ROLES = {
   admin:      { label:"Owner",      perms:{ write:true,  del:true,  settings:true  }, access: ALL_TABS },
   manager:    { label:"Manager",    perms:{ write:true,  del:true,  settings:false }, access: ALL_TABS },
-  accountant: { label:"Accountant", perms:{ write:true,  del:false, settings:false }, access: ["summary","invoice","invoicelist","customers","dues","vendors","cash","rates","report","customer"] },
+  accountant: { label:"Accountant", perms:{ write:true,  del:false, settings:false }, access: ["summary","invoice","invoicelist","customers","dues","vendors","cash","rates","report","customer","orders"] },
   entry:      { label:"Entry",      perms:{ write:true,  del:false, settings:false }, access: ENTRY_TABS },
   viewer:     { label:"Viewer",     perms:{ write:false, del:false, settings:false }, access: ["summary","report","customer"] }
 };
@@ -551,6 +554,7 @@ function allowed(tab) {
   const u = currentUser();
   if (!u) return false;
   if (u.role === "admin") return true;
+  if (tab === "orders") return !!(ROLES[u.role] && ROLES[u.role].access.includes("orders"));
   return (u.access || ENTRY_TABS).includes(tab);
 }
 function shrinkLogo(dataUrl) {
@@ -629,6 +633,57 @@ function askSay(text, mine) {
   div.textContent = text;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
+  return div;
+}
+let askHist = [], askNotice = false;
+function askContext() {
+  const r0 = x => Math.round(n(x));
+  const dayRows = (store, ch) => Object.keys(store || {}).sort().slice(-120).map(d => { try { const r = compute(store[d]); return [d, ch, r0(r.pnl), r0(r.invoiceRev), r0(r.landing), Math.round(n(r.invoiceWt) * 10) / 10]; } catch (e) { return null; } }).filter(Boolean);
+  const invs = (state.taxInvoices || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const recent = invs.slice(-300);
+  const cutoff = new Date(Date.now() - 100 * 86400000).toISOString().slice(0, 10);
+  const invRows = recent.map(i => {
+    const t = invTotal(i), p = invPaid(i);
+    const items = String(i.date) >= cutoff ? (i.items || []).map(it => (it.name || "") + " " + (i.channel === "b2c" ? num(it.packets) + "pkt x " + num(it.packetG) + "g" : num(it.qty) + (it.unit || "")) + " @" + num(it.rate)).join("; ") : "";
+    return [i.number, i.date, i.channel || "b2b", partyOf(i.partyId).name, r0(t), r0(p), r0(t - p), i.due || "", items];
+  });
+  const custRows = (state.parties || []).map(p => {
+    const list = invs.filter(i => i.partyId === p.id);
+    const t = list.reduce((a, i) => a + invTotal(i), 0), r = list.reduce((a, i) => a + invPaid(i), 0);
+    return [p.name, p.terms || 7, list.length, r0(t), r0(r), r0(t - r)];
+  });
+  const vendRows = (state.vendors || []).map(v => { const x = vendorPos(v); return [v.name, r0(x.opening), r0(x.purch), r0(x.paid), r0(x.closing)]; });
+  const cashRows = (state.cashBook || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-60).map(c => [c.date, r0(c.cashInHand), r0(c.expenses), r0(c.receipts), r0(c.byProduct)]);
+  const u = currentUser() || {};
+  const ctx = {
+    today: today(), company: (state.company || {}).name || "CARNE", user_role: (ROLES[u.role] || {}).label || "",
+    note: "All amounts are in Indian rupees, already computed by the app. Each table lists its columns first.",
+    daily_books: { columns: ["date", "book", "profit_loss", "sales", "purchases_landing_cost", "kg_sold"], rows: dayRows(state.days, "b2b").concat(dayRows(state.daysB2C, "b2c")) },
+    invoices: { columns: ["number", "date", "book", "customer", "total", "received", "balance_due", "due_date", "items_last_100_days"], rows: invRows },
+    customers: { columns: ["name", "terms_days", "invoice_count", "invoiced", "received", "balance_due"], rows: custRows },
+    vendors: { columns: ["name", "opening", "purchases", "paid", "balance_payable"], rows: vendRows },
+    cash_book: { columns: ["date", "cash_in_hand", "expenses", "receipts", "by_product"], rows: cashRows }
+  };
+  let text = JSON.stringify(ctx);
+  while (text.length > 150000 && ctx.invoices.rows.length > 20) { ctx.invoices.rows = ctx.invoices.rows.slice(Math.ceil(ctx.invoices.rows.length / 5)); text = JSON.stringify(ctx); }
+  return text;
+}
+async function askAI(q, low) {
+  const bubble = askSay("Thinking...", false); bubble.classList.add("thinking");
+  try {
+    const res = await sbFetch("/functions/v1/ask-carne", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q.slice(0, 500), history: askHist.slice(-6), context: askContext() }) });
+    if (res.status === 404) { bubble.remove(); if (!askNotice) { askNotice = true; askSay("The AI assistant is not switched on yet, so I will use the basic answers."); } askLocal(q, low); return; }
+    let j = {}; try { j = await res.json(); } catch (e) {}
+    bubble.classList.remove("thinking");
+    if (!res.ok || !j.ok) { bubble.textContent = "Sorry, I could not answer: " + (j.error || j.message || ("error " + res.status)); return; }
+    bubble.textContent = j.answer;
+    askHist.push({ role: "user", text: q.slice(0, 500) }, { role: "assistant", text: String(j.answer).slice(0, 1500) });
+    if (askHist.length > 12) askHist = askHist.slice(-12);
+  } catch (e) {
+    bubble.classList.remove("thinking"); bubble.textContent = "Sorry, I could not reach the assistant: " + e.message;
+  }
+  const log = document.getElementById("askLog"); log.scrollTop = log.scrollHeight;
 }
 function findParty(q) {
   const low = q.toLowerCase();
@@ -650,6 +705,9 @@ function handleAsk(raw) {
     askSay("Opened " + page + ".");
     return;
   }
+  askAI(q, low);
+}
+function askLocal(q, low) {
   if (/profit|p&l|pnl/.test(low)) {
     const ch = /b2c/.test(low) ? "b2c" : "b2b";
     const day = (ch==="b2c" ? state.daysB2C : state.days)[today()] || form;
@@ -953,7 +1011,7 @@ function normalizeState(s) {
   out.company = Object.assign({}, companyDefault, isObj(out.company) ? out.company : {});
   ["days", "daysB2C"].forEach(k => { if (!isObj(out[k])) out[k] = {}; });
   ["vendors", "parties", "products", "recentDispatchNames"].forEach(k => { if (!Array.isArray(out[k])) out[k] = structuredClone(d[k]); });
-  ["vendorTxns", "taxInvoices", "mailNotes", "customerRates", "cashBook"].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+  ["vendorTxns", "taxInvoices", "mailNotes", "customerRates", "cashBook", "orders"].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   return out;
 }
 function blankState() { const s = seed(); s.days = {}; s.taxInvoices = []; s.vendorTxns = []; return normalizeState(s); }
@@ -1001,10 +1059,10 @@ function mergeState(base, loc, rem) {
 }
 
 /* --- which parts of the app state live in which table --- */
-const LOCAL_ONLY = new Set(["users", "invoiceDraft", "reportDate", "reportFrom", "reportTo", "reportChannel", "reportMode", "reportType", "rateParty", "editPayId", "editCashId", "editVendorId", "invoiceSearchValue", "invoiceSearchMode", "invDate", "custMode", "productParty", "productBook", "rateBook", "custBook", "invoiceFrom", "invoiceTo", "mailStatus", "draftSavedAt"]);
-const LISTS = { taxInvoices: "tax_invoices", parties: "parties", vendors: "vendors", vendorTxns: "vendor_txns", cashBook: "cash_book" };
+const LOCAL_ONLY = new Set(["orderPlanDate", "users", "invoiceDraft", "reportDate", "reportFrom", "reportTo", "reportChannel", "reportMode", "reportType", "rateParty", "editPayId", "editCashId", "editVendorId", "invoiceSearchValue", "invoiceSearchMode", "invDate", "custMode", "productParty", "productBook", "rateBook", "custBook", "invoiceFrom", "invoiceTo", "mailStatus", "draftSavedAt"]);
+const LISTS = { taxInvoices: "tax_invoices", parties: "parties", vendors: "vendors", vendorTxns: "vendor_txns", cashBook: "cash_book", orders: "orders" };
 const MAPS = { days: ["day_books", "b2b:"], daysB2C: ["day_books", "b2c:"], carcassSplit: ["carcass_splits", ""] };
-const TABLES = ["settings", "parties", "vendors", "vendor_txns", "tax_invoices", "cash_book", "day_books", "carcass_splits"];
+const TABLES = ["settings", "parties", "vendors", "vendor_txns", "tax_invoices", "cash_book", "day_books", "carcass_splits", "orders"];
 function localOnlyPart(st) { const o = {}; Object.keys(st || {}).forEach(k => { if (LOCAL_ONLY.has(k)) o[k] = st[k]; }); return o; }
 function syncPart(st) { const o = {}; Object.keys(st || {}).forEach(k => { if (!LOCAL_ONLY.has(k)) o[k] = st[k]; }); return o; }
 function stateFromRows(rows) {
@@ -1082,7 +1140,12 @@ async function fetchAllRows() {
     rows[t] = [];
     for (let off = 0; ; off += 1000) {
       const res = await sbFetch("/rest/v1/" + t + "?select=id,data,updated_at&order=seq.asc&limit=1000&offset=" + off);
-      if (!res.ok) throw new Error("Could not load the database. " + (await res.text()).slice(0, 140));
+      if (!res.ok) {
+        const tx = await res.text();
+        if (t === "orders" && (res.status === 404 || /PGRST205|PGRST200|does not exist|schema cache/i.test(tx))) { ordersReady = false; rows[t] = []; break; }
+        throw new Error("Could not load the database. " + tx.slice(0, 140));
+      }
+      if (t === "orders") ordersReady = true;
       const part = await res.json();
       rows[t] = rows[t].concat(part);
       if (part.length < 1000) break;
@@ -2965,7 +3028,7 @@ function syncVendorPurchases() {
       d.channel = channel;
       if (!d.vendorId) d.vendorId = fallback;
       (d.purchases || []).forEach(line => {
-        if (!isCarcassLine(line)) return;
+        if (!isCarcassLine(line) && !(line.src === "order" && line.vendorId)) return;
         const vendorId = line.vendorId || d.vendorId || fallback;
         if (String(line.pay||"credit").toLowerCase()==="cash") return;
         const amount = toKg(line.qty, line.unit || "kg") * n(line.buy);
@@ -2985,6 +3048,7 @@ function paintVendors() {
   document.getElementById("vendorForm").innerHTML = `<h2>Vendor payable</h2>
     <div class="formula">Closing = opening balance − paid by us + fresh raw material purchase</div>
     <div class="lbl">Vendor</div><input id="vName" placeholder="Supplier name" value="${editing?esc(editing.name):""}" />
+    <div class="lbl">Supplies (comma separated, e.g. carcass, liver, paya)</div><input id="vSupplies" placeholder="carcass, liver" value="${editing?esc(editing.supplies||""):""}" />
     <div class="row" style="grid-template-columns:1fr 1fr;margin-top:8px;">
       <div><div class="lbl">Opening balance</div><input id="vOpen" type="number" value="${editing?editing.opening:""}" /></div>
       <div><div class="lbl">As on date</div><input id="vAsOn" type="date" value="${editing?editing.asOn:today()}" /></div>
@@ -3004,10 +3068,10 @@ function paintVendors() {
     if (!name) return;
     if (state.editVendorId) {
       const v = state.vendors.find(x => x.id === state.editVendorId);
-      if (v) { v.name = name; v.opening = n(document.getElementById("vOpen").value); v.asOn = document.getElementById("vAsOn").value; }
+      if (v) { v.name = name; v.supplies = document.getElementById("vSupplies").value.trim(); v.opening = n(document.getElementById("vOpen").value); v.asOn = document.getElementById("vAsOn").value; }
       state.editVendorId = "";
     } else {
-      state.vendors.push({ id: uid(), name, opening: n(document.getElementById("vOpen").value), asOn: document.getElementById("vAsOn").value, note: "" });
+      state.vendors.push({ id: uid(), name, supplies: document.getElementById("vSupplies").value.trim(), opening: n(document.getElementById("vOpen").value), asOn: document.getElementById("vAsOn").value, note: "" });
     }
     persist(); fillVendors(); paintVendors();
   };
@@ -4571,14 +4635,238 @@ function paintCash() {
     persist(); paintCash();
   });
 }
+/* ---------- Orders (customer purchase orders) ---------- */
+let ordersReady = true;
+let planDraft = { date: "", loss: 0, carcass: null, by: null };
+function blankOrder() {
+  return { id: uid(), poNo: "", date: today(), deliveryDate: today(), partyId: "", status: "open", note: "", lines: [{ id: uid(), name: "", qty: "", unit: "kg", packets: "", packetG: "", channel: "auto", rate: "" }] };
+}
+let orderDraft = null;
+function lineChannel(order, line) {
+  if (line.channel === "b2b" || line.channel === "b2c") return line.channel;
+  if (n(line.packets) || n(line.packetG)) return "b2c";
+  const books = partyBooks(partyOf(order.partyId));
+  return books.length === 1 ? books[0] : "b2b";
+}
+function orderLineKg(line) {
+  if (n(line.packets) || n(line.packetG)) return packetKg(line.packets, line.packetG);
+  return toKg(line.qty, line.unit || "kg");
+}
+const r2 = x => Math.round(n(x) * 100) / 100;
+function isByproductName(name) { return !!productKey(name) && !/carc/i.test(name || ""); }
+function demandFor(date) {
+  const map = {};
+  (state.orders || []).filter(o => o.deliveryDate === date && o.status !== "cancelled").forEach(o => {
+    (o.lines || []).forEach(l => {
+      const name = String(l.name || "").trim(); const kg = orderLineKg(l);
+      if (!name || !kg) return;
+      const key = name.toLowerCase();
+      const row = map[key] || (map[key] = { name, byp: isByproductName(name), b2b: 0, b2c: 0 });
+      row[lineChannel(o, l)] += kg;
+    });
+  });
+  return Object.values(map).sort((a, b) => (a.byp - b.byp) || a.name.localeCompare(b.name));
+}
+function vendorFor(productName) {
+  const key = productKey(productName), low = String(productName || "").toLowerCase();
+  const hit = (state.vendors || []).find(v => String(v.supplies || "").toLowerCase().split(/[,;\n]+/).map(s => s.trim()).filter(Boolean).some(s => low.includes(s) || s.includes(low) || (key && productKey(s) === key)));
+  return hit ? hit.id : "";
+}
+function paintOrders() {
+  const form1 = document.getElementById("ordersForm"), plan = document.getElementById("ordersPlan"), list = document.getElementById("ordersList");
+  if (!form1) return;
+  if (!orderDraft) orderDraft = blankOrder();
+  const o = orderDraft, parties = state.parties || [];
+  const names = Array.from(new Set((state.products || []).map(p => typeof p === "string" ? p : p && p.name).filter(Boolean).concat((state.customerRates || []).map(r => r.name).filter(Boolean))));
+  const banner = ordersReady ? "" : `<div class="banner">Orders need a one-time database setup. Run supabase_orders.sql in Supabase, then reload. Until then orders cannot be saved.</div>`;
+  const lineRow = (l, i) => `<div class="row" data-line="${i}" style="grid-template-columns:1.4fr .6fr .5fr .6fr .6fr .6fr auto;align-items:end;margin-top:6px;">
+      <div><input data-k="name" list="orderNames" value="${esc(l.name)}" placeholder="Product" /></div>
+      <div><input data-k="qty" type="number" step="any" value="${esc(l.qty)}" placeholder="Qty" /></div>
+      <div><select data-k="unit"><option value="kg" ${l.unit==="kg"?"selected":""}>kg</option><option value="g" ${l.unit==="g"?"selected":""}>g</option></select></div>
+      <div><input data-k="packets" type="number" step="1" value="${esc(l.packets)}" placeholder="Packets" /></div>
+      <div><input data-k="packetG" type="number" step="any" value="${esc(l.packetG)}" placeholder="Packet g" /></div>
+      <div><select data-k="channel"><option value="auto" ${l.channel==="auto"?"selected":""}>Auto: ${lineChannel(o, { ...l, channel: "auto" }).toUpperCase()}</option><option value="b2b" ${l.channel==="b2b"?"selected":""}>B2B</option><option value="b2c" ${l.channel==="b2c"?"selected":""}>B2C</option></select></div>
+      <button class="btn tiny" data-delline="${i}" type="button">✕</button></div>`;
+  form1.innerHTML = `<h2>${state.orders.some(x => x.id === o.id) ? "Edit" : "New"} purchase order</h2>${banner}
+    <div class="row" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+      <div><div class="lbl">Customer</div><select id="poParty"><option value="">Select</option>${parties.map(p => `<option value="${p.id}" ${p.id===o.partyId?"selected":""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div><div class="lbl">PO number</div><input id="poNo" value="${esc(o.poNo)}" /></div>
+      <div><div class="lbl">PO date</div><input id="poDate" type="date" value="${o.date}" /></div>
+      <div><div class="lbl">Delivery date</div><input id="poDeliver" type="date" value="${o.deliveryDate}" /></div>
+    </div>
+    <datalist id="orderNames">${names.map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist>
+    <div class="sec">Items</div>
+    <p class="note">Use qty with kg or g for loose meat, or packets with packet grams for packed items. Packed items go to B2C. Others follow the customer's book. You can override any line.</p>
+    <div id="poLines">${o.lines.map(lineRow).join("")}</div>
+    <div class="actions"><button class="btn tiny" id="poAddLine" type="button">+ Add item</button></div>
+    <div class="lbl">Note</div><input id="poNote" value="${esc(o.note || "")}" />
+    <div class="actions"><button class="btn primary" id="poSave" type="button">Save order</button><button class="btn ghost" id="poNew" type="button">Clear</button></div>`;
+  const pull = () => {
+    o.partyId = document.getElementById("poParty").value; o.poNo = document.getElementById("poNo").value.trim();
+    o.date = document.getElementById("poDate").value; o.deliveryDate = document.getElementById("poDeliver").value; o.note = document.getElementById("poNote").value.trim();
+    form1.querySelectorAll("[data-line]").forEach(row => { const l = o.lines[Number(row.dataset.line)]; row.querySelectorAll("[data-k]").forEach(el => { l[el.dataset.k] = el.value; }); });
+  };
+  form1.querySelectorAll("[data-line] [data-k=channel], #poParty").forEach(el => el.onchange = () => { pull(); paintOrders(); });
+  document.getElementById("poAddLine").onclick = () => { pull(); o.lines.push({ id: uid(), name: "", qty: "", unit: "kg", packets: "", packetG: "", channel: "auto", rate: "" }); paintOrders(); };
+  form1.querySelectorAll("[data-delline]").forEach(b => b.onclick = () => { pull(); o.lines.splice(Number(b.dataset.delline), 1); if (!o.lines.length) o.lines.push({ id: uid(), name: "", qty: "", unit: "kg", packets: "", packetG: "", channel: "auto", rate: "" }); paintOrders(); });
+  document.getElementById("poNew").onclick = () => { orderDraft = blankOrder(); paintOrders(); };
+  document.getElementById("poSave").onclick = () => {
+    pull();
+    if (!ordersReady) { alert("Orders are not set up in the database yet."); return; }
+    if (!o.partyId) { alert("Select a customer."); return; }
+    const lines = o.lines.filter(l => String(l.name || "").trim() && orderLineKg(l) > 0);
+    if (!lines.length) { alert("Add at least one item with a quantity."); return; }
+    if (!o.deliveryDate) { alert("Enter the delivery date."); return; }
+    const saved = Object.assign({}, o, { lines: lines.map(l => ({ ...l, name: String(l.name).trim() })) });
+    const at = state.orders.findIndex(x => x.id === o.id);
+    if (at >= 0) state.orders[at] = saved; else state.orders.push(saved);
+    planDraft.date = saved.deliveryDate; state.orderPlanDate = saved.deliveryDate;
+    orderDraft = blankOrder(); persist(); toast("Order saved."); paintOrders();
+  };
+  /* ---- demand and buying plan ---- */
+  const date = state.orderPlanDate || o.deliveryDate || today();
+  if (planDraft.date !== date) planDraft = { date, loss: planDraft.loss || 0, carcass: null, by: null };
+  const dem = demandFor(date), meat = dem.filter(x => !x.byp), byp = dem.filter(x => x.byp);
+  const meatB2b = meat.reduce((s, x) => s + x.b2b, 0), meatB2c = meat.reduce((s, x) => s + x.b2c, 0);
+  const suggest = r2((meatB2b + meatB2c) * (1 + n(planDraft.loss) / 100));
+  const vend = id => (state.vendors || []).map(v => `<option value="${v.id}" ${v.id === id ? "selected" : ""}>${esc(v.name)}</option>`).join("");
+  if (!planDraft.carcass) {
+    const cv = (state.vendors || []).find(v => /carc/i.test(v.supplies || "")) || (state.vendors || [])[0] || {};
+    planDraft.carcass = [{ vendorId: cv.id || "", total: suggest || "", b2b: "", buy: "", pay: "credit", auto: true }];
+  }
+  if (!planDraft.by) planDraft.by = {};
+  planDraft.carcass.forEach(r => { if (r.auto) { r.total = suggest || ""; r.b2b = ""; } });
+  byp.forEach(x => { const k = x.name.toLowerCase(); if (!planDraft.by[k]) planDraft.by[k] = { vendorId: vendorFor(x.name) || ((state.vendors || [])[0] || {}).id || "", kg: r2(x.b2b + x.b2c), buy: "", pay: "credit", auto: true }; if (planDraft.by[k].auto) planDraft.by[k].kg = r2(x.b2b + x.b2c); });
+  const share = (tot, row) => { const d = meatB2b + meatB2c; const b = row.b2b !== "" && row.b2b != null ? n(row.b2b) : (d ? r2(tot * meatB2b / d) : 0); return { b2b: b, b2c: r2(tot - b) }; };
+  const cRows = planDraft.carcass.map((r, i) => { const s = share(n(r.total), r); return `<div class="row" data-c="${i}" style="grid-template-columns:1.3fr .7fr .7fr .7fr .7fr .7fr auto;align-items:end;margin-top:6px;">
+      <div><div class="lbl">Vendor</div><select data-k="vendorId">${vend(r.vendorId)}</select></div>
+      <div><div class="lbl">Total kg</div><input data-k="total" type="number" step="any" value="${esc(r.total)}" /></div>
+      <div><div class="lbl">B2B kg</div><input data-k="b2b" type="number" step="any" value="${r.b2b !== "" ? esc(r.b2b) : s.b2b}" /></div>
+      <div><div class="lbl">B2C kg</div><input value="${s.b2c}" readonly /></div>
+      <div><div class="lbl">Buy rate</div><input data-k="buy" type="number" step="any" value="${esc(r.buy)}" /></div>
+      <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${r.pay!=="cash"?"selected":""}>Credit</option><option value="cash" ${r.pay==="cash"?"selected":""}>Cash</option></select></div>
+      <button class="btn tiny" data-delc="${i}" type="button">✕</button></div>`; }).join("");
+  const bRows = byp.map(x => { const k = x.name.toLowerCase(), r = planDraft.by[k], tot = x.b2b + x.b2c; return `<div class="row" data-b="${esc(k)}" style="grid-template-columns:1fr 1.3fr .7fr .7fr .7fr auto;align-items:end;margin-top:6px;">
+      <div><div class="lbl">Product</div><input value="${esc(x.name)}" readonly /></div>
+      <div><div class="lbl">Vendor</div><select data-k="vendorId">${vend(r.vendorId)}</select></div>
+      <div><div class="lbl">Kg to buy <span class="hint">ordered ${r2(tot)}</span></div><input data-k="kg" type="number" step="any" value="${esc(r.kg)}" /></div>
+      <div><div class="lbl">Buy rate</div><input data-k="buy" type="number" step="any" value="${esc(r.buy)}" /></div>
+      <div><div class="lbl">Payment</div><select data-k="pay"><option value="credit" ${r.pay!=="cash"?"selected":""}>Credit</option><option value="cash" ${r.pay==="cash"?"selected":""}>Cash</option></select></div>
+      <div class="hint">B2B ${r2(x.b2b)} · B2C ${r2(x.b2c)}</div></div>`; }).join("");
+  plan.innerHTML = `<h2>Demand and buying plan</h2>
+    <div class="row" style="grid-template-columns:200px 1fr;align-items:end;"><div><div class="lbl">Delivery date</div><input id="planDate" type="date" value="${date}" /></div><div class="hint">All orders due on this date, split into B2B and B2C.</div></div>
+    ${dem.length ? `<table><thead><tr><th>Product</th><th>Type</th><th class="num">B2B kg</th><th class="num">B2C kg</th><th class="num">Total kg</th></tr></thead><tbody>${dem.map(x => `<tr><td>${esc(x.name)}</td><td>${x.byp ? "By-product" : "Carcass meat"}</td><td class="num">${r2(x.b2b)}</td><td class="num">${r2(x.b2c)}</td><td class="num">${r2(x.b2b + x.b2c)}</td></tr>`).join("")}<tr><th>Total</th><th></th><th class="num">${r2(dem.reduce((s, x) => s + x.b2b, 0))}</th><th class="num">${r2(dem.reduce((s, x) => s + x.b2c, 0))}</th><th class="num">${r2(dem.reduce((s, x) => s + x.b2b + x.b2c, 0))}</th></tr></tbody></table>` : `<p class="note">No orders for this date yet.</p>`}
+    <div class="sec">Carcass</div>
+    <div class="row" style="grid-template-columns:160px 1fr;align-items:end;"><div><div class="lbl">Loss % to allow</div><input id="planLoss" type="number" step="any" value="${esc(planDraft.loss)}" /></div><div class="hint">Ordered meat ${r2(meatB2b + meatB2c)} kg → suggested carcass ${suggest} kg (ordered kg increased by the loss %). You can overwrite the kg.</div></div>
+    <div id="planCarcass">${cRows}</div><div class="actions"><button class="btn tiny" id="planAddC" type="button">+ Add vendor</button></div>
+    <div class="sec">By-products</div>
+    ${byp.length ? bRows : `<p class="note">No by-product orders for this date.</p>`}
+    <p class="note">Apply writes these purchases into the B2B and B2C day entries for ${date}, and fills the carcass split. Applying again updates the same lines and never duplicates them. Carcass and by-product purchases on credit are added to the vendor's dues.</p>
+    <div class="actions"><button class="btn primary" id="planApply" type="button">Apply to B2B and B2C days</button></div>`;
+  const readPlan = () => {
+    planDraft.loss = n(document.getElementById("planLoss").value);
+    plan.querySelectorAll("[data-c]").forEach(row => { const r = planDraft.carcass[Number(row.dataset.c)]; row.querySelectorAll("[data-k]").forEach(el => { if ((el.dataset.k === "total" || el.dataset.k === "b2b") && String(r[el.dataset.k]) !== el.value && !(el.dataset.k === "b2b" && r.auto)) r.auto = false; if (!(el.dataset.k === "b2b" && r.auto)) r[el.dataset.k] = el.value; }); });
+    plan.querySelectorAll("[data-b]").forEach(row => { const r = planDraft.by[row.dataset.b]; row.querySelectorAll("[data-k]").forEach(el => { if (el.dataset.k === "kg" && String(r.kg) !== el.value) r.auto = false; r[el.dataset.k] = el.value; }); });
+  };
+  document.getElementById("planDate").onchange = e => { state.orderPlanDate = e.target.value; planDraft = { date: "", loss: planDraft.loss, carcass: null, by: null }; paintOrders(); };
+  document.getElementById("planLoss").onchange = () => { readPlan(); planDraft.carcass = null; paintOrders(); };
+  plan.querySelectorAll("[data-c] [data-k=total], [data-c] [data-k=b2b], [data-c] [data-k=vendorId]").forEach(el => el.onchange = () => { readPlan(); paintOrders(); });
+  document.getElementById("planAddC").onclick = () => { readPlan(); planDraft.carcass.push({ vendorId: ((state.vendors || [])[0] || {}).id || "", total: "", b2b: "", buy: "", pay: "credit" }); paintOrders(); };
+  plan.querySelectorAll("[data-delc]").forEach(b => b.onclick = () => { readPlan(); planDraft.carcass.splice(Number(b.dataset.delc), 1); if (!planDraft.carcass.length) planDraft.carcass = null; paintOrders(); });
+  document.getElementById("planApply").onclick = () => { readPlan(); applyPlan(date, meatB2b, meatB2c, byp); };
+  /* ---- order list ---- */
+  const sorted = (state.orders || []).slice().sort((a, b) => String(b.deliveryDate).localeCompare(String(a.deliveryDate)) || String(b.date).localeCompare(String(a.date)));
+  list.innerHTML = `<h2>Purchase orders <span class="hint">${sorted.length}</span></h2>
+    <table><thead><tr><th>PO</th><th>Customer</th><th>Delivery</th><th>Items</th><th>Status</th><th></th></tr></thead><tbody>${sorted.map(x => {
+      const chs = Array.from(new Set((x.lines || []).map(l => lineChannel(x, l))));
+      const items = (x.lines || []).map(l => esc(l.name) + " " + (n(l.packets) ? num(l.packets) + "×" + num(l.packetG) + "g" : num(l.qty) + (l.unit || "kg")) + " (" + lineChannel(x, l).toUpperCase() + ")").join(", ");
+      return `<tr><td>${esc(x.poNo || "-")}<br><span class="hint">${esc(x.date)}</span></td><td>${esc(partyOf(x.partyId).name)}</td><td>${esc(x.deliveryDate)}</td><td>${items}</td>
+        <td><select data-status="${x.id}"><option value="open" ${x.status==="open"?"selected":""}>Open</option><option value="delivered" ${x.status==="delivered"?"selected":""}>Delivered</option><option value="cancelled" ${x.status==="cancelled"?"selected":""}>Cancelled</option></select></td>
+        <td>${chs.map(c => `<button class="btn tiny" data-mkinv="${x.id}|${c}">${c.toUpperCase()} invoice</button>`).join(" ")} <button class="btn tiny" data-editpo="${x.id}">Edit</button> <button class="btn tiny" data-delpo="${x.id}">Delete</button></td></tr>`; }).join("") || `<tr><td colspan="6">No orders yet.</td></tr>`}</tbody></table>`;
+  list.querySelectorAll("[data-status]").forEach(s => s.onchange = () => { const x = state.orders.find(v => v.id === s.dataset.status); if (x) { x.status = s.value; persist(); paintOrders(); } });
+  list.querySelectorAll("[data-editpo]").forEach(b => b.onclick = () => { orderDraft = structuredClone(state.orders.find(v => v.id === b.dataset.editpo)); paintOrders(); window.scrollTo(0, 0); });
+  list.querySelectorAll("[data-delpo]").forEach(b => b.onclick = () => { if (!confirm("Delete this order?")) return; state.orders = state.orders.filter(v => v.id !== b.dataset.delpo); persist(); paintOrders(); });
+  list.querySelectorAll("[data-mkinv]").forEach(b => b.onclick = () => { const [id, ch] = b.dataset.mkinv.split("|"); invoiceFromOrder(state.orders.find(v => v.id === id), ch); });
+}
+function invoiceFromOrder(order, ch) {
+  if (!order) return;
+  const d = blankInvoice(); d.channel = ch; d.partyId = order.partyId; d.po = order.poNo || ""; d.date = order.deliveryDate || today();
+  const p = partyOf(order.partyId); if (p.ship) d.ship = p.ship;
+  d.items = (order.lines || []).filter(l => lineChannel(order, l) === ch).map(l => {
+    const found = rateForProduct(order.partyId, l.name, ch) || {};
+    const base = { name: l.name, hsn: found.hsn || "", rate: l.rate !== "" && l.rate != null ? l.rate : (found.rate || "") };
+    return (ch === "b2c" || n(l.packets)) ? Object.assign(base, { packets: l.packets, packetG: l.packetG }) : Object.assign(base, { qty: l.qty, unit: l.unit === "g" ? "g" : "kg" });
+  });
+  draft = d; openTab("invoice");
+}
+function setDayPurchase(channel, date, match, make, qty, buy, pay, name, vendorId) {
+  const store = channel === "b2c" ? state.daysB2C : state.days;
+  if (!store[date]) { const d = blank(); d.date = date; d.channel = channel; store[date] = d; }
+  const day = store[date]; day.purchases = day.purchases || [];
+  let line = day.purchases.find(match);
+  if (!line && name) {   // adopt the empty by-product row of the same name instead of adding a duplicate
+    line = day.purchases.find(p => !isCarcassLine(p) && !p.src && String(p.name || "").toLowerCase() === name.toLowerCase() && !n(p.qty) && !n(p.buy));
+    if (line) { line.src = "order"; line.vendorId = vendorId; }
+  }
+  if (!line) { line = make(); day.purchases.push(line); }
+  line.qty = qty; line.unit = "kg"; if (buy !== "" && buy != null) line.buy = buy; line.pay = pay;
+  return day;
+}
+function applyPlan(date, meatB2b, meatB2c, byp) {
+  if (!perm("write")) { alert("Your login cannot make entries."); return; }
+  let did = 0;
+  const rows = planDraft.carcass || [];
+  const used = rows.filter(r => r.vendorId && n(r.total) > 0);
+  if (used.length && new Set(used.map(r => r.vendorId)).size !== used.length) { alert("Each vendor can appear only once in the carcass list."); return; }
+  const split = splitRows(date);
+  const saved = [];
+  used.forEach(r => {
+    const tot = r2(r.total), d = meatB2b + meatB2c;
+    const b = r.b2b !== "" && r.b2b != null ? r2(r.b2b) : (d ? r2(tot * meatB2b / d) : 0), c = r2(tot - b);
+    ["b2b", "b2c"].forEach(ch => {
+      const q = ch === "b2b" ? b : c;
+      const store = ch === "b2c" ? state.daysB2C : state.days;
+      if (!store[date]) { const x = blank(); x.date = date; x.channel = ch; store[date] = x; }
+      const day = store[date]; day.purchases = day.purchases || [];
+      let line = day.purchases.find(p => isCarcassLine(p) && p.vendorId === r.vendorId);
+      if (!line) { line = day.purchases.find(p => isCarcassLine(p) && !p.vendorId && n(p.qty) === 0); if (line) line.vendorId = r.vendorId; }
+      if (!line) { line = { name: "Mutton carcass", qty: "", buy: "", sell: "", costing: true, pay: "credit", vendorId: r.vendorId }; day.purchases.unshift(line); }
+      line.qty = String(q); line.unit = line.unit || "kg"; line.pay = r.pay === "cash" ? "cash" : "credit"; if (r.buy !== "") line.buy = r.buy;
+    });
+    saved.push({ vendorId: r.vendorId, total: String(tot), b2b: String(b), b2c: String(c), saved: true }); did++;
+  });
+  if (saved.length) {
+    const keep = split.filter(x => x.vendorId && !saved.some(s => s.vendorId === x.vendorId) && (x.total || x.b2b || x.b2c));
+    splitStore()[date] = keep.concat(saved);
+  }
+  byp.forEach(x => {
+    const r = planDraft.by[x.name.toLowerCase()]; if (!r || !r.vendorId || n(r.kg) <= 0) return;
+    const tot = x.b2b + x.b2c, kg = n(r.kg);
+    const bq = tot ? r2(kg * x.b2b / tot) : 0, cq = r2(kg - bq);
+    [["b2b", bq], ["b2c", cq]].forEach(([ch, q]) => {
+      const store = ch === "b2c" ? state.daysB2C : state.days;
+      const existing = store[date] && (store[date].purchases || []).find(p => p.src === "order" && p.vendorId === r.vendorId && String(p.name).toLowerCase() === x.name.toLowerCase());
+      if (q <= 0) { if (existing) store[date].purchases = store[date].purchases.filter(p => p !== existing); return; }
+      setDayPurchase(ch, date, p => p.src === "order" && p.vendorId === r.vendorId && String(p.name).toLowerCase() === x.name.toLowerCase(),
+        () => ({ name: x.name, qty: "", unit: "kg", buy: "", sell: "", pay: "credit", vendorId: r.vendorId, src: "order" }), String(q), r.buy, r.pay === "cash" ? "cash" : "credit", x.name, r.vendorId);
+    }); did++;
+  });
+  ["b2b", "b2c"].forEach(ch => { const store = ch === "b2c" ? state.daysB2C : state.days; if (store[date]) applyByproductSellRates(Object.assign(store[date], { channel: ch, date })); });
+  if (form.date === date) { const ch = form.channel || "b2b"; const day = dayFor(date, ch); form.purchases = (day.purchases || []).map(x => ({ ...x })); try { renderPurchases(); paint(); } catch (e) {} }
+  persist();
+  toast(did ? "Applied to the B2B and B2C days for " + date + "." : "Nothing to apply. Enter vendor and kg first.");
+  paintOrders();
+}
+
 window.openTab = function (tab) {
   try {
     if (tab && !allowed(tab)) return;
     document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("on", x.dataset.tab === tab));
-    ["entry","report","vendors","dues","customers","invoice","invoicelist","customer","history","cash","rates","products","users","company","inventory"].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
+    ["entry","report","orders","vendors","dues","customers","invoice","invoicelist","customer","history","cash","rates","products","users","company","inventory"].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add("hidden"); });
     if (tab === "b2b" || tab === "b2c") { switchChannel(tab); document.getElementById("entry").classList.remove("hidden"); }
     else { const page = document.getElementById(tab); if (page) page.classList.remove("hidden"); }
     const b = { dataset: { tab } };
+    if (b.dataset.tab==="orders") paintOrders();
     if (b.dataset.tab==="vendors") paintVendors();
     if (b.dataset.tab==="dues") paintDues();
     if (b.dataset.tab==="customers") paintCustomers();
@@ -4653,6 +4941,7 @@ window.doLogout = async function (note) {
   try { localStorage.removeItem(KEY); localStorage.removeItem(BASE_KEY); } catch (e) {}
   state = blankState(); draft = blankInvoice(); form = blank(); form.date = today(); form.channel = "b2b";
   showLogin(); paintHome();
+  askHist = []; askNotice = false; try { document.getElementById("askLog").innerHTML = ""; } catch (e) {}
   const header = document.querySelector("header.app");
   if (header) header.style.display = "none";
   const who = document.getElementById("who");
